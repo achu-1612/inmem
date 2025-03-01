@@ -13,7 +13,7 @@ func main() {
 	go func() {
 		for {
 			<-time.After(time.Second)
-			fmt.Println(c.Len(), time.Now())
+			fmt.Println(c.Size(), time.Now())
 		}
 	}()
 

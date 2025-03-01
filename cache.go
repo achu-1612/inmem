@@ -42,8 +42,8 @@ func New(opt Options) Cache {
 	return c
 }
 
-// Len returns the number of items in the cache.
-func (c *cache) Len() int {
+// Size returns the number of items in the cache.
+func (c *cache) Size() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
