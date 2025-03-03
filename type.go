@@ -6,5 +6,11 @@ type Item struct {
 }
 
 type Options struct {
-	Finalizer func(string, any)
+	Finalizer       func(string, any)
+	TransactionType TransactionType
+}
+
+type txStore struct {
+	changes map[string]Item
+	deletes map[string]struct{}
 }

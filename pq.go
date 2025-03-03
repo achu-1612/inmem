@@ -53,3 +53,13 @@ func (pq *PriorityQueue) Pop() interface{} {
 
 	return item
 }
+
+// Remove removes items from the priority queue given the keys
+func (pq *PriorityQueue) Remove(key string) {
+	for i, item := range *pq {
+		if item.key == key {
+			heap.Remove(pq, i)
+			break
+		}
+	}
+}

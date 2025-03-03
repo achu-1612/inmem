@@ -1,8 +1,11 @@
 package inmem
 
 import (
+	"bytes"
 	"container/heap"
 	"fmt"
+	"runtime"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -18,6 +21,8 @@ type cache struct {
 	pq        PriorityQueue
 	cond      *sync.Cond
 	timer     *time.Timer
+	txType    TransactionType
+	txStage   map[uint64]*txStore
 }
 
 // New returns a new Cache instance.
@@ -28,10 +33,16 @@ func New(opt Options) Cache {
 		finalizer: opt.Finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
+		txType:    opt.TransactionType,
+		txStage:   make(map[uint64]*txStore),
 	}
 
 	if c.finalizer == nil {
 		c.finalizer = func(k string, v interface{}) {}
+	}
+
+	if c.txType == "" {
+		c.txType = TransactionTypeOptimistic
 	}
 
 	c.cond = sync.NewCond(c.mu)
@@ -50,7 +61,27 @@ func (c *cache) Size() int {
 	return len(c.items)
 }
 
+// TransactionType returns the type of transaction used by the cache.
+func (c *cache) TransactionType() TransactionType {
+	return c.txType
+}
+
+// InTransaction returns true if the cache is in a transaction.
+func (c *cache) InTransaction() bool {
+	_, ok := c.txStage[c.getStageID()]
+	return ok
+}
+
+// getStageID returns the stage ID for the current transaction.
+func (c *cache) getStageID() uint64 {
+	if c.txType == TransactionTypeAtomic {
+		return 0
+	}
+	return getGoroutineID()
+}
+
 // Clear clears all items from the cache.
+// Note: Clear does not flush out the on-going transaction data.
 func (c *cache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -71,11 +102,12 @@ func (c *cache) garbageCollector() {
 
 		now := time.Now().UnixNano()
 		for len(c.pq) > 0 && c.pq[0].expiresAt <= now {
-			fmt.Println("Deleting key", c.pq[0].key, c.pq[0].expiresAt, now)
 			expired := heap.Pop(&c.pq).(*pqItem)
-			delete(c.items, expired.key)
-			fmt.Println("Deleted key", expired.key)
-			c.finalizer(expired.key, c.items[expired.key].Object)
+			item, ok := c.items[expired.key]
+			if ok {
+				delete(c.items, expired.key)
+				c.finalizer(expired.key, item.Object)
+			}
 		}
 
 		// Sleep until the next item's expiration
@@ -102,19 +134,36 @@ func (c *cache) Set(k string, v interface{}, ttl int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.InTransaction() {
+		stage := c.txStage[c.getStageID()]
+		stage.changes[k] = item
+		delete(stage.deletes, k)
+	} else {
+		c.setItem(k, item)
+	}
+}
+
+func (c *cache) setItem(k string, item Item) {
 	c.items[k] = item
 
-	if ttl > 0 {
-		heap.Push(&c.pq, &pqItem{
-			key:       k,
-			expiresAt: item.Expiration,
-		})
+	if item.Expiration == 0 {
+		return
+	}
 
-		c.cond.Signal()
+	top := ""
+	if c.pq.Len() > 0 {
+		top = c.pq[0].key // pq top before we remove the keys
+	}
 
-		if c.pq[0].key == k {
-			c.timer.Reset(time.Until(time.Unix(0, item.Expiration)))
-		}
+	heap.Push(&c.pq, &pqItem{
+		key:       k,
+		expiresAt: item.Expiration,
+	})
+
+	c.cond.Signal()
+
+	if c.pq.Len() > 0 && top != c.pq[0].key {
+		c.timer.Reset(time.Until(time.Unix(0, c.pq[0].expiresAt)))
 	}
 }
 
@@ -122,6 +171,18 @@ func (c *cache) Set(k string, v interface{}, ttl int64) {
 func (c *cache) Get(k string) (interface{}, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.InTransaction() {
+		stage := c.txStage[c.getStageID()]
+
+		if item, ok := stage.changes[k]; ok {
+			return item.Object, true
+		}
+
+		if _, ok := stage.deletes[k]; ok {
+			return nil, false
+		}
+	}
 
 	item, ok := c.items[k]
 	if !ok {
@@ -136,12 +197,105 @@ func (c *cache) Delete(k string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.InTransaction() {
+		stage := c.txStage[c.getStageID()]
+
+		delete(stage.changes, k)
+		stage.deletes[k] = struct{}{}
+	} else {
+		c.deleteItem(k)
+	}
+}
+
+func (c *cache) deleteItem(k string) {
 	item, ok := c.items[k]
 	if !ok {
 		return
 	}
 
 	delete(c.items, k)
-
 	c.finalizer(k, item.Object)
+
+	if item.Expiration == 0 {
+		return
+	}
+
+	top := ""
+
+	if c.pq.Len() > 0 {
+		top = c.pq[0].key
+	}
+
+	c.pq.Remove(k)
+
+	// if the top of the pq has changed, reset the timer
+	if c.pq.Len() > 0 && top != c.pq[0].key {
+		c.timer.Reset(time.Until(time.Unix(0, c.pq[0].expiresAt)))
+	}
+}
+
+// Begin starts a new transaction.
+func (c *cache) Begin() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.InTransaction() {
+		return fmt.Errorf("transaction already in progress")
+	}
+
+	c.txStage[c.getStageID()] = &txStore{
+		changes: make(map[string]Item),
+		deletes: make(map[string]struct{}),
+	}
+
+	return nil
+}
+
+// Commit commits the current transaction.
+func (c *cache) Commit() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.InTransaction() {
+		return fmt.Errorf("no transaction in progress")
+	}
+
+	stage := c.txStage[c.getStageID()]
+
+	// Apply changes
+	for k, item := range stage.changes {
+		c.setItem(k, item)
+	}
+
+	// Apply deletions
+	for k := range stage.deletes {
+		c.deleteItem(k)
+	}
+
+	delete(c.txStage, c.getStageID())
+
+	return nil
+}
+
+// Rollback rolls back the current transaction.
+func (c *cache) Rollback() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.InTransaction() {
+		return fmt.Errorf("no transaction in progress")
+	}
+
+	delete(c.txStage, c.getStageID())
+
+	return nil
+}
+
+func getGoroutineID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
 }
