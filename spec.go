@@ -22,21 +22,11 @@ type Cache interface {
 	// List returns a list of all items in the cache.
 	// List() ([]any, error)
 
-	// SaveFile saves the cache to a file.
-	// SaveFile(filename string) error
-}
+	// Dump saves the cache to the given file.
+	Dump(filename string) error
 
-type TransactionType string
-
-const (
-	TransactionTypeAtomic     TransactionType = "atomic"
-	TransactionTypeOptimistic TransactionType = "optimistic"
-)
-
-// Transaction is the interface that defines the methods for a transaction.
-type Transaction interface {
-	// Type returns the type of the transaction.
-	Type() string
+	// TransactionType returns the type of the transaction.
+	TransactionType() TransactionType
 
 	// Begin starts a transaction.
 	Begin() error
@@ -47,3 +37,10 @@ type Transaction interface {
 	// Rollback rolls back a transaction.
 	Rollback() error
 }
+
+type TransactionType string
+
+const (
+	TransactionTypeAtomic     TransactionType = "atomic"
+	TransactionTypeOptimistic TransactionType = "optimistic"
+)

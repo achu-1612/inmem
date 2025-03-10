@@ -22,6 +22,35 @@ const (
 // make sure cache implements the Cache interface
 var _ Cache = (*cache)(nil)
 
+// Item represents a cache item.
+type Item struct {
+	Object     any
+	Expiration int64
+}
+
+// Expired returns true if the item has expired.
+func (i *Item) Expired(now time.Time) bool {
+	if i.Expiration == 0 {
+		return false
+	}
+
+	return now.UnixNano() > i.Expiration
+}
+
+// Options represents the options for the cache store initialization.
+type Options struct {
+	Finalizer       func(string, any)
+	TransactionType TransactionType
+	Sync            bool
+	SyncFilePath    string
+	SyncInterval    time.Duration
+}
+
+type txStore struct {
+	changes map[string]Item
+	deletes map[string]struct{}
+}
+
 // cache is an in-memory cache that implements the Cache interface
 type cache struct {
 	items map[string]Item
@@ -189,7 +218,7 @@ func (c *cache) diskSync(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := c.SaveFile(c.syncFilePath); err != nil {
+			if err := c.Dump(c.syncFilePath); err != nil {
 				Errorf("saving cache data to file: %v", err)
 			} else {
 				Debugf("cache data saved to file: %s store size:%d", c.syncFilePath, c.Size())
@@ -411,68 +440,47 @@ func getGoroutineID() uint64 {
 	return n
 }
 
-// Write the cache's items (using Gob) to an io.Writer.
-//
-// NOTE: This method is deprecated in favor of c.Items() and NewFrom() (see the
-// documentation for NewFrom().)
-func (c *cache) Save(w io.Writer) (err error) {
+// save writes cache's items (using Gob) to an io.Writer.
+func (c *cache) save(w io.Writer) error {
 	enc := gob.NewEncoder(w)
-
-	defer func() {
-		if x := recover(); x != nil {
-			err = fmt.Errorf("error registering item types with Gob library")
-		}
-	}()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for _, v := range c.items {
-		gob.Register(v.Object)
-	}
-
-	err = enc.Encode(&c.items)
-
-	return
+	return enc.Encode(&c.items)
 }
 
-// Save the cache's items to the given filename, creating the file if it
+// Dump the cache's items to the given filename, creating the file if it
 // doesn't exist, and overwriting it if it does.
-//
-// NOTE: This method is deprecated in favor of c.Items() and NewFrom() (see the
-// documentation for NewFrom().)
-func (c *cache) SaveFile(fname string) error {
-	fp, err := os.Create(fname)
+func (c *cache) Dump(fileName string) error {
+	fp, err := os.Create(fileName)
+	if err != nil {
+		Errorf("creating file: %v", err)
+
+		return fmt.Errorf("cache dump: %v", err)
+	}
+
+	defer fp.Close()
+
+	if err := c.save(fp); err != nil {
+		Errorf("saving cache data: %v", err)
+
+		return fmt.Errorf("cache dump: %v", err)
+	}
+
+	return nil
+}
+
+// load reads and loads a cache dump from the given filename.
+func (c *cache) load(fileName string) error {
+	fp, err := os.Open(fileName)
 	if err != nil {
 		return err
 	}
 
-	if err = c.Save(fp); err != nil {
-		fp.Close()
+	defer fp.Close()
 
-		return err
-	}
-
-	return fp.Close()
-}
-
-func (c *cache) load(fname string) error {
-	fp, err := os.Open(fname)
-	if err != nil {
-		return err
-	}
-
-	if err = c.Load(fp); err != nil {
-		fp.Close()
-
-		return err
-	}
-
-	return fp.Close()
-}
-
-func (c *cache) Load(r io.Reader) error {
-	dec := gob.NewDecoder(r)
+	dec := gob.NewDecoder(fp)
 
 	items := map[string]Item{}
 
@@ -481,7 +489,6 @@ func (c *cache) Load(r io.Reader) error {
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	now := time.Now()
 
@@ -490,6 +497,10 @@ func (c *cache) Load(r io.Reader) error {
 			c.setItem(k, v)
 		}
 	}
+
+	c.mu.Unlock()
+
+	Debugf("cache data loaded from file: %s store size: %d", fileName, c.Size())
 
 	return nil
 }
