@@ -7,8 +7,10 @@ type Options struct {
 	Finalizer       func(string, any)
 	TransactionType TransactionType
 	Sync            bool
-	SyncFilePath    string
+	SyncFolderPath  string
 	SyncInterval    time.Duration
-	NumShards       int
-	HashFunction    func(string) uint32
+
+	Sharding     bool
+	ShardCount   int
+	HashFunction func(string) uint32
 }

@@ -56,26 +56,27 @@ type cache struct {
 	txType  TransactionType
 	txStage map[uint64]*txStore
 
-	sync         bool
-	syncFilePath string
-	syncInterval time.Duration
+	sync           bool
+	syncFolderPath string
+	syncInterval   time.Duration
+
+	storeIndex int
 }
 
 // New returns a new Cache instance.
-func New(ctx context.Context, opt Options) Cache {
-	gob.Register(Item{})
-
+func NewCache(ctx context.Context, opt Options, index int) Cache {
 	c := &cache{
-		items:        make(map[string]Item),
-		mu:           &sync.Mutex{},
-		finalizer:    opt.Finalizer,
-		pq:           make(PriorityQueue, 0),
-		timer:        time.NewTimer(time.Hour),
-		txType:       opt.TransactionType,
-		txStage:      make(map[uint64]*txStore),
-		sync:         opt.Sync,
-		syncFilePath: opt.SyncFilePath,
-		syncInterval: opt.SyncInterval,
+		items:          make(map[string]Item),
+		mu:             &sync.Mutex{},
+		finalizer:      opt.Finalizer,
+		pq:             make(PriorityQueue, 0),
+		timer:          time.NewTimer(time.Hour),
+		txType:         opt.TransactionType,
+		txStage:        make(map[uint64]*txStore),
+		sync:           opt.Sync,
+		syncFolderPath: opt.SyncFolderPath,
+		syncInterval:   opt.SyncInterval,
+		storeIndex:     index,
 	}
 
 	if c.finalizer == nil {
@@ -93,10 +94,10 @@ func New(ctx context.Context, opt Options) Cache {
 	c.cond = sync.NewCond(c.mu)
 
 	if c.sync {
-		if c.syncFilePath == "" {
-			c.syncFilePath = filepath.Join(os.TempDir(), "cache.gob")
+		if c.syncFolderPath == "" {
+			c.syncFolderPath = filepath.Join(os.TempDir(), "inmem")
 
-			Warnf("no sync file path provided, using default path: %s", c.syncFilePath)
+			Warnf("no sync folder path provided, using default path: %s", c.syncFolderPath)
 		}
 
 		if c.syncInterval == 0 {
@@ -105,10 +106,10 @@ func New(ctx context.Context, opt Options) Cache {
 			Warnf("no sync interval provided, using default interval: %s", c.syncInterval)
 		}
 
-		if err := c.load(c.syncFilePath); err != nil {
+		if err := c.load(); err != nil {
 			Errorf("loading cache from file: %v", err)
 		} else {
-			Debugf("cache data loaded from file: %s store size: %d", c.syncFilePath, c.Size())
+			Debugf("cache data loaded from folder: %s store size: %d", c.syncFolderPath, c.Size())
 		}
 
 		// start the disk sync processgo c.diskSync(ctx)
@@ -209,10 +210,8 @@ func (c *cache) diskSync(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := c.Dump(c.syncFilePath); err != nil {
+			if err := c.Dump(); err != nil {
 				Errorf("saving cache data to file: %v", err)
-			} else {
-				Debugf("cache data saved to file: %s store size:%d", c.syncFilePath, c.Size())
 			}
 
 		case <-ctx.Done():
@@ -441,29 +440,39 @@ func (c *cache) save(w io.Writer) error {
 	return enc.Encode(&c.items)
 }
 
+// getSyncFilePath returns the path to the sync file for the current cache store/shard.
+func (c *cache) getSyncFilePath() string {
+	return filepath.Join(c.syncFolderPath, fmt.Sprintf("store-%d.gob", c.storeIndex))
+}
+
 // Dump the cache's items to the given filename, creating the file if it
 // doesn't exist, and overwriting it if it does.
-func (c *cache) Dump(fileName string) error {
-	fp, err := os.Create(fileName)
+func (c *cache) Dump() error {
+	fp, err := os.Create(c.getSyncFilePath())
 	if err != nil {
-		Errorf("creating file: %v", err)
-
 		return fmt.Errorf("cache dump: %v", err)
 	}
 
 	defer fp.Close()
 
 	if err := c.save(fp); err != nil {
-		Errorf("saving cache data: %v", err)
-
 		return fmt.Errorf("cache dump: %v", err)
 	}
+
+	fi, err := fp.Stat()
+	if err != nil {
+		Errorf("getting file info: %v", err)
+	}
+
+	Debugf("cache data saved to file: %s store size: %d file size: %d", c.getSyncFilePath(), c.Size(), fi.Size())
 
 	return nil
 }
 
 // load reads and loads a cache dump from the given filename.
-func (c *cache) load(fileName string) error {
+func (c *cache) load() error {
+	fileName := c.getSyncFilePath()
+
 	fp, err := os.Open(fileName)
 	if err != nil {
 		return err

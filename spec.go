@@ -26,8 +26,8 @@ type Cache interface {
 	// Clear clears all items from the cache.
 	Clear()
 
-	// Dump saves the cache to the given file.
-	Dump(filename string) error
+	// Dump saves the cache to the configured directory.
+	Dump() error
 
 	// TransactionType returns the type of the transaction.
 	TransactionType() TransactionType

@@ -3,38 +3,38 @@ package inmem
 import (
 	"context"
 	"hash/fnv"
-	"time"
+)
+
+const (
+	defaultNumShards = 5
+	minNumShards     = 3
 )
 
 // shardedCache represents a sharded cache instance.
 type shardedCache struct {
-	shards       []Cache
-	numShards    int
-	hashFn       func(string) uint32
-	sync         bool
-	syncFilePath string
-	syncInterval time.Duration
+	shards    []Cache
+	numShards int
+	hashFn    func(string) uint32
 }
 
 // NewShardedCache returns a new sharded cache instance.
 func NewShardedCache(ctx context.Context, opt Options) Cache {
-	numShards := opt.NumShards
-	if numShards <= 0 {
-		numShards = 16 // Default number of shards
+	numShards := opt.ShardCount
+	if numShards < minNumShards {
+		Warnf("Invalid number of shards: %d, using default number of shards: %d", numShards, defaultNumShards)
+
+		numShards = defaultNumShards // Default number of shards
 	}
 
 	shards := make([]Cache, numShards)
 	for i := 0; i < numShards; i++ {
-		shards[i] = New(ctx, opt)
+		shards[i] = NewCache(ctx, opt, i)
 	}
 
 	sc := &shardedCache{
-		shards:       shards,
-		numShards:    numShards,
-		hashFn:       opt.HashFunction,
-		sync:         opt.Sync,
-		syncFilePath: opt.SyncFilePath,
-		syncInterval: opt.SyncInterval,
+		shards:    shards,
+		numShards: numShards,
+		hashFn:    opt.HashFunction,
 	}
 
 	if sc.hashFn == nil {
@@ -99,9 +99,9 @@ func (sc *shardedCache) Clear() {
 }
 
 // Dump saves the cache to the given file.
-func (sc *shardedCache) Dump(filename string) error {
+func (sc *shardedCache) Dump() error {
 	for _, shard := range sc.shards {
-		if err := shard.Dump(filename); err != nil {
+		if err := shard.Dump(); err != nil {
 			return err
 		}
 	}
