@@ -8,19 +8,22 @@ type Cache interface {
 	Size() int
 
 	// Get returns a value from the cache given a key.
-	Get(key string) (interface{}, bool)
-
-	// List returns a list of all items in the cache.
-	// List() ([]interface{}, error)
+	Get(key string) (any, bool)
 
 	// Set sets a key in the cache with a value and a time-to-live (TTL).
-	Set(key string, value interface{}, ttl int64)
+	Set(key string, value any, ttl int64)
 
 	// Delete deletes a key from the cache.
 	Delete(key string)
 
 	// Clear clears all items from the cache.
 	Clear()
+
+	// List returns a list of all items in the cache.
+	// List() ([]any, error)
+
+	// SaveFile saves the cache to a file.
+	// SaveFile(filename string) error
 }
 
 type TransactionType string

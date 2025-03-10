@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"container/heap"
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 
 func TestGarbageCollector(t *testing.T) {
 	finalizerCalled := false
-	finalizer := func(k string, v interface{}) {
+	finalizer := func(k string, v any) {
 		finalizerCalled = true
 	}
 
@@ -36,7 +37,7 @@ func TestGarbageCollector(t *testing.T) {
 	})
 
 	// Start the garbage collector in a separate goroutine
-	go c.garbageCollector()
+	go c.garbageCollector(context.Background())
 
 	// Wait for the item to expire
 	time.Sleep(2 * time.Second)
@@ -57,7 +58,7 @@ func TestGarbageCollector(t *testing.T) {
 
 func TestClear(t *testing.T) {
 	finalizerCalled := false
-	finalizer := func(k string, v interface{}) {
+	finalizer := func(k string, v any) {
 		finalizerCalled = true
 	}
 
@@ -100,7 +101,7 @@ func TestInTransaction(t *testing.T) {
 	c := &cache{
 		items:     make(map[string]Item),
 		mu:        &sync.Mutex{},
-		finalizer: func(k string, v interface{}) {},
+		finalizer: func(k string, v any) {},
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
@@ -195,7 +196,7 @@ func TestGetStageID(t *testing.T) {
 }
 func TestSetItem(t *testing.T) {
 	// finalizerCalled := false
-	finalizer := func(k string, v interface{}) {
+	finalizer := func(k string, v any) {
 		// finalizerCalled = true
 	}
 
@@ -213,7 +214,7 @@ func TestSetItem(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		value      interface{}
+		value      any
 		ttl        int64
 		expectSize int
 	}{
@@ -270,7 +271,7 @@ func TestSetItem(t *testing.T) {
 }
 func TestDeleteItem(t *testing.T) {
 	finalizerCalled := false
-	finalizer := func(k string, v interface{}) {
+	finalizer := func(k string, v any) {
 		finalizerCalled = true
 	}
 
@@ -287,7 +288,7 @@ func TestDeleteItem(t *testing.T) {
 	tests := []struct {
 		name       string
 		key        string
-		value      interface{}
+		value      any
 		ttl        int64
 		expectSize int
 	}{
@@ -378,7 +379,7 @@ func TestBegin(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
 				mu:        &sync.Mutex{},
-				finalizer: func(k string, v interface{}) {},
+				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
@@ -406,7 +407,7 @@ func TestCommit(t *testing.T) {
 		name          string
 		setup         func(c *cache)
 		expectError   bool
-		expectedItems map[string]interface{}
+		expectedItems map[string]any
 		queueSize     int
 	}{
 		{
@@ -417,7 +418,7 @@ func TestCommit(t *testing.T) {
 				c.Set("key2", "value2", 10)
 			},
 			expectError: false,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				"key1": "value1",
 				"key2": "value2",
 			},
@@ -432,7 +433,7 @@ func TestCommit(t *testing.T) {
 				c.Delete("key1")
 			},
 			expectError: false,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				"key2": "value2",
 			},
 			queueSize: 1,
@@ -443,7 +444,7 @@ func TestCommit(t *testing.T) {
 				// No setup needed
 			},
 			expectError:   true,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				// No items expected
 			},
 			queueSize: 0,
@@ -455,7 +456,7 @@ func TestCommit(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
 				mu:        &sync.Mutex{},
-				finalizer: func(k string, v interface{}) {},
+				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
@@ -501,7 +502,7 @@ func TestRollback(t *testing.T) {
 		name          string
 		setup         func(c *cache)
 		expectError   bool
-		expectedItems map[string]interface{}
+		expectedItems map[string]any
 	}{
 		{
 			name: "Rollback transaction with changes",
@@ -511,7 +512,7 @@ func TestRollback(t *testing.T) {
 				c.Set("key2", "value2", 10)
 			},
 			expectError:   false,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				// No items expected after rollback
 			},
 		},
@@ -524,7 +525,7 @@ func TestRollback(t *testing.T) {
 				c.Delete("key1")
 			},
 			expectError: false,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				"key1": "value1",
 				"key2": "value2",
 			},
@@ -535,7 +536,7 @@ func TestRollback(t *testing.T) {
 				// No setup needed
 			},
 			expectError:   true,
-			expectedItems: map[string]interface{}{
+			expectedItems: map[string]any{
 				// No items expected
 			},
 		},
@@ -546,7 +547,7 @@ func TestRollback(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
 				mu:        &sync.Mutex{},
-				finalizer: func(k string, v interface{}) {},
+				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
@@ -588,7 +589,7 @@ func TestRollback(t *testing.T) {
 	}
 }
 func TestDelete_WithoutTx(t *testing.T) {
-	finalizer := func(k string, v interface{}) {}
+	finalizer := func(k string, v any) {}
 
 	c := &cache{
 		items:     make(map[string]Item),
@@ -653,7 +654,7 @@ func TestDelete_WithoutTx(t *testing.T) {
 }
 
 func TestDelete_WithTx(t *testing.T) {
-	finalizer := func(k string, v interface{}) {}
+	finalizer := func(k string, v any) {}
 
 	c := &cache{
 		items:     make(map[string]Item),
@@ -700,7 +701,7 @@ func TestDelete_WithTx(t *testing.T) {
 	}
 }
 func TestGet(t *testing.T) {
-	finalizer := func(k string, v interface{}) {}
+	finalizer := func(k string, v any) {}
 
 	c := &cache{
 		items:     make(map[string]Item),
@@ -716,7 +717,7 @@ func TestGet(t *testing.T) {
 		name      string
 		setup     func()
 		key       string
-		expectVal interface{}
+		expectVal any
 		expectOk  bool
 	}{
 		{
@@ -786,16 +787,16 @@ func TestGet(t *testing.T) {
 	}
 }
 func TestSet(t *testing.T) {
-	finalizer := func(k string, v interface{}) {}
+	finalizer := func(k string, v any) {}
 
 	tests := []struct {
 		name       string
 		setup      func(c *cache)
 		key        string
-		value      interface{}
+		value      any
 		ttl        int64
 		expectSize int
-		expectVal  interface{}
+		expectVal  any
 	}{
 		{
 			name: "Set item without transaction",
