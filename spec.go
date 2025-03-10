@@ -2,6 +2,13 @@ package inmem
 
 //go:generate mockgen -package inmem -destination spec.mock.go -source spec.go -self_package "github.com/achu-1612/inmem"
 
+type TransactionType string
+
+const (
+	TransactionTypeAtomic     TransactionType = "atomic"
+	TransactionTypeOptimistic TransactionType = "optimistic"
+)
+
 // Cache is the interface that defines the methods for a cache store.
 type Cache interface {
 	// Size returns the number of items in the cache.
@@ -19,11 +26,8 @@ type Cache interface {
 	// Clear clears all items from the cache.
 	Clear()
 
-	// List returns a list of all items in the cache.
-	// List() ([]any, error)
-
-	// Dump saves the cache to the given file.
-	Dump(filename string) error
+	// Dump saves the cache to the configured directory.
+	Dump() error
 
 	// TransactionType returns the type of the transaction.
 	TransactionType() TransactionType
@@ -37,10 +41,3 @@ type Cache interface {
 	// Rollback rolls back a transaction.
 	Rollback() error
 }
-
-type TransactionType string
-
-const (
-	TransactionTypeAtomic     TransactionType = "atomic"
-	TransactionTypeOptimistic TransactionType = "optimistic"
-)
