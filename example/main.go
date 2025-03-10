@@ -1,14 +1,26 @@
 package main
 
 import (
+	"context"
+	"encoding/gob"
 	"fmt"
 	"time"
 
 	"github.com/achu-1612/inmem"
 )
 
+type User struct {
+	Name string
+	Age  int
+}
+
 func main() {
-	c := inmem.New(inmem.Options{})
+	gob.Register(User{})
+	c := inmem.New(context.Background(), inmem.Options{
+		Sync:         true,
+		SyncInterval: time.Second * 5,
+		SyncFilePath: "cache.gob",
+	})
 
 	go func() {
 		for {
@@ -22,11 +34,15 @@ func main() {
 	c.Set("key2", "value2", 15)
 
 	go func() {
-		<-time.After(time.Second * 6)
-		c.Set("key3", "value3", 2)
+		i := 1
+		for {
+			i++
+			<-time.After(time.Second)
+			c.Set("key"+string(i), User{Name: "Achu", Age: 25}, 0)
+		}
 	}()
 
-	<-time.After(time.Second * 20)
+	<-time.After(time.Second * 100)
 
 	// fmt.Println(c.Get("key"))
 	// fmt.Println(c.Get("key1"))

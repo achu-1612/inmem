@@ -78,6 +78,20 @@ func (mr *MockCacheMockRecorder) Get(key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCache)(nil).Get), key)
 }
 
+// SaveFile mocks base method.
+func (m *MockCache) SaveFile(filename string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveFile", filename)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveFile indicates an expected call of SaveFile.
+func (mr *MockCacheMockRecorder) SaveFile(filename any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFile", reflect.TypeOf((*MockCache)(nil).SaveFile), filename)
+}
+
 // Set mocks base method.
 func (m *MockCache) Set(key string, value any, ttl int64) {
 	m.ctrl.T.Helper()
