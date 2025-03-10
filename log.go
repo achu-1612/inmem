@@ -13,7 +13,7 @@ func init() {
 	std = log.New()
 
 	std.SetOutput(os.Stdout)
-	std.SetLevel(log.InfoLevel)
+	std.SetLevel(log.DebugLevel)
 
 	std.SetFormatter(&log.TextFormatter{
 		DisableColors:   false,

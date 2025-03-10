@@ -39,6 +39,20 @@ func (m *MockCache) EXPECT() *MockCacheMockRecorder {
 	return m.recorder
 }
 
+// Begin mocks base method.
+func (m *MockCache) Begin() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Begin")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Begin indicates an expected call of Begin.
+func (mr *MockCacheMockRecorder) Begin() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Begin", reflect.TypeOf((*MockCache)(nil).Begin))
+}
+
 // Clear mocks base method.
 func (m *MockCache) Clear() {
 	m.ctrl.T.Helper()
@@ -51,6 +65,20 @@ func (mr *MockCacheMockRecorder) Clear() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockCache)(nil).Clear))
 }
 
+// Commit mocks base method.
+func (m *MockCache) Commit() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Commit")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Commit indicates an expected call of Commit.
+func (mr *MockCacheMockRecorder) Commit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockCache)(nil).Commit))
+}
+
 // Delete mocks base method.
 func (m *MockCache) Delete(key string) {
 	m.ctrl.T.Helper()
@@ -61,6 +89,20 @@ func (m *MockCache) Delete(key string) {
 func (mr *MockCacheMockRecorder) Delete(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockCache)(nil).Delete), key)
+}
+
+// Dump mocks base method.
+func (m *MockCache) Dump(filename string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Dump", filename)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Dump indicates an expected call of Dump.
+func (mr *MockCacheMockRecorder) Dump(filename any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dump", reflect.TypeOf((*MockCache)(nil).Dump), filename)
 }
 
 // Get mocks base method.
@@ -78,18 +120,18 @@ func (mr *MockCacheMockRecorder) Get(key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCache)(nil).Get), key)
 }
 
-// SaveFile mocks base method.
-func (m *MockCache) SaveFile(filename string) error {
+// Rollback mocks base method.
+func (m *MockCache) Rollback() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveFile", filename)
+	ret := m.ctrl.Call(m, "Rollback")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SaveFile indicates an expected call of SaveFile.
-func (mr *MockCacheMockRecorder) SaveFile(filename any) *gomock.Call {
+// Rollback indicates an expected call of Rollback.
+func (mr *MockCacheMockRecorder) Rollback() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveFile", reflect.TypeOf((*MockCache)(nil).SaveFile), filename)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockCache)(nil).Rollback))
 }
 
 // Set mocks base method.
@@ -118,82 +160,16 @@ func (mr *MockCacheMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockCache)(nil).Size))
 }
 
-// MockTransaction is a mock of Transaction interface.
-type MockTransaction struct {
-	ctrl     *gomock.Controller
-	recorder *MockTransactionMockRecorder
-	isgomock struct{}
-}
-
-// MockTransactionMockRecorder is the mock recorder for MockTransaction.
-type MockTransactionMockRecorder struct {
-	mock *MockTransaction
-}
-
-// NewMockTransaction creates a new mock instance.
-func NewMockTransaction(ctrl *gomock.Controller) *MockTransaction {
-	mock := &MockTransaction{ctrl: ctrl}
-	mock.recorder = &MockTransactionMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTransaction) EXPECT() *MockTransactionMockRecorder {
-	return m.recorder
-}
-
-// Begin mocks base method.
-func (m *MockTransaction) Begin() error {
+// TransactionType mocks base method.
+func (m *MockCache) TransactionType() TransactionType {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Begin")
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "TransactionType")
+	ret0, _ := ret[0].(TransactionType)
 	return ret0
 }
 
-// Begin indicates an expected call of Begin.
-func (mr *MockTransactionMockRecorder) Begin() *gomock.Call {
+// TransactionType indicates an expected call of TransactionType.
+func (mr *MockCacheMockRecorder) TransactionType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Begin", reflect.TypeOf((*MockTransaction)(nil).Begin))
-}
-
-// Commit mocks base method.
-func (m *MockTransaction) Commit() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Commit")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Commit indicates an expected call of Commit.
-func (mr *MockTransactionMockRecorder) Commit() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTransaction)(nil).Commit))
-}
-
-// Rollback mocks base method.
-func (m *MockTransaction) Rollback() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rollback")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Rollback indicates an expected call of Rollback.
-func (mr *MockTransactionMockRecorder) Rollback() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockTransaction)(nil).Rollback))
-}
-
-// Type mocks base method.
-func (m *MockTransaction) Type() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Type")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Type indicates an expected call of Type.
-func (mr *MockTransactionMockRecorder) Type() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockTransaction)(nil).Type))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransactionType", reflect.TypeOf((*MockCache)(nil).TransactionType))
 }

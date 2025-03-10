@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/gob"
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/achu-1612/inmem"
@@ -25,7 +25,7 @@ func main() {
 	go func() {
 		for {
 			<-time.After(time.Second)
-			fmt.Println(c.Size(), time.Now())
+			// fmt.Println(c.Size(), time.Now())
 		}
 	}()
 
@@ -38,14 +38,10 @@ func main() {
 		for {
 			i++
 			<-time.After(time.Second)
-			c.Set("key"+string(i), User{Name: "Achu", Age: 25}, 0)
+			c.Set("key"+strconv.Itoa(i), User{Name: "Achu", Age: 25}, 0)
 		}
 	}()
 
 	<-time.After(time.Second * 100)
-
-	// fmt.Println(c.Get("key"))
-	// fmt.Println(c.Get("key1"))
-	// fmt.Println(c.Get("key2"))
 
 }
