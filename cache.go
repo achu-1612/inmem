@@ -37,15 +37,6 @@ func (i *Item) Expired(now time.Time) bool {
 	return now.UnixNano() > i.Expiration
 }
 
-// Options represents the options for the cache store initialization.
-type Options struct {
-	Finalizer       func(string, any)
-	TransactionType TransactionType
-	Sync            bool
-	SyncFilePath    string
-	SyncInterval    time.Duration
-}
-
 type txStore struct {
 	changes map[string]Item
 	deletes map[string]struct{}
