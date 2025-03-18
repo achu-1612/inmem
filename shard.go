@@ -15,14 +15,13 @@ type shardedCache struct {
 	shards    []Cache
 	numShards int
 	hashFn    func(string) uint32
+	// getShardFun func(string) uint32
 }
 
 // NewShardedCache returns a new sharded cache instance.
 func NewShardedCache(ctx context.Context, opt Options) Cache {
 	numShards := opt.ShardCount
 	if numShards < minNumShards {
-		Warnf("Invalid number of shards: %d, using default number of shards: %d", numShards, defaultNumShards)
-
 		numShards = defaultNumShards // Default number of shards
 	}
 
@@ -38,8 +37,6 @@ func NewShardedCache(ctx context.Context, opt Options) Cache {
 	}
 
 	if sc.hashFn == nil {
-		Warn("No hash function provided, using default hash function")
-
 		sc.hashFn = defaultHashFn
 	}
 
@@ -53,6 +50,10 @@ func defaultHashFn(key string) uint32 {
 
 	return h.Sum32()
 }
+
+// func defaultGetShardFun(hashFn func(string) uint32, shardCount int, key string) uint32 {
+// 	return hashFn(key) % uint32(shardCount)
+// }
 
 // getShard returns the shard for a given key.
 func (sc *shardedCache) getShard(key string) Cache {
