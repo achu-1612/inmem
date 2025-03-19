@@ -13,17 +13,23 @@ func TestStore(t *testing.T) {
 		ShardCount: 10,
 		DebugLogs:  false,
 		SupressLog: true,
+		// ShardIndexCache:     true,
+		// ShardIndexCacheSize: 10000,
 		// Add other options as needed
 	}
 
 	cache := NewShardedCache(ctx, opt)
 
-	n := 2000000
+	n := 200000
 
 	now := time.Now()
 
 	for i := 0; i < n; i++ {
 		cache.Set("key"+fmt.Sprint(i), "value", 0)
+	}
+
+	for i := 0; i < n; i++ {
+		cache.Get("key" + fmt.Sprint(i))
 	}
 
 	t.Log(time.Since(now))
@@ -33,10 +39,11 @@ func TestStore(t *testing.T) {
 func BenchmarkShardedCache(b *testing.B) {
 	ctx := context.Background()
 	opt := Options{
-		ShardCount: 10,
-		DebugLogs:  false,
-		SupressLog: true,
-		// Add other options as needed
+		ShardCount:          10,
+		DebugLogs:           false,
+		SupressLog:          true,
+		ShardIndexCache:     true,
+		ShardIndexCacheSize: 100,
 	}
 
 	cache := NewShardedCache(ctx, opt)
@@ -65,7 +72,9 @@ func BenchmarkShardedCache(b *testing.B) {
 func BenchmarkMemoryUsage(b *testing.B) {
 	ctx := context.Background()
 	opt := Options{
-		ShardCount: 10,
+		ShardCount:          10,
+		ShardIndexCache:     true,
+		ShardIndexCacheSize: 1000,
 		// Add other options as needed
 	}
 
@@ -77,4 +86,65 @@ func BenchmarkMemoryUsage(b *testing.B) {
 		}
 		b.ReportAllocs()
 	})
+}
+
+// write a benchmark to store keys and access some keys multiple times, many times
+
+func BenchmarkStore(b *testing.B) {
+	ctx := context.Background()
+	opt := Options{
+		ShardCount: 10,
+		DebugLogs:  false,
+		SupressLog: true,
+		// ShardIndexCache:     true,
+		ShardIndexCacheSize: 10000,
+		// Add other options as needed
+	}
+
+	cache := NewShardedCache(ctx, opt)
+
+	n := 200000
+
+	for i := 0; i < n; i++ {
+		cache.Set("key"+fmt.Sprint(i), "value", 0)
+	}
+
+	b.Run("Read", func(b *testing.B) {
+		b.Log(b.N)
+		for i := 0; i < b.N; i++ {
+			cache.Get("key" + fmt.Sprint(i))
+		}
+	})
+
+	b.ReportAllocs()
+}
+
+func BenchmarkGet(b *testing.B) {
+	ctx := context.Background()
+	opt := Options{
+		ShardCount:          10,
+		DebugLogs:           false,
+		SupressLog:          true,
+		ShardIndexCache:     false,
+		ShardIndexCacheSize: 10000,
+		// Add other options as needed
+	}
+
+	cache := NewShardedCache(ctx, opt)
+
+	n := 2000
+
+	for i := 0; i < n; i++ {
+		cache.Set("key"+fmt.Sprint(i), "value", 0)
+	}
+
+	b.Run("Read", func(b *testing.B) {
+		b.Log(b.N)
+
+		for i := 0; i < b.N; i++ {
+			cache.Get("key0")
+		}
+	})
+
+	b.ReportAllocs()
 }

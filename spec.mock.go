@@ -92,17 +92,17 @@ func (mr *MockCacheMockRecorder) Delete(key any) *gomock.Call {
 }
 
 // Dump mocks base method.
-func (m *MockCache) Dump(filename string) error {
+func (m *MockCache) Dump() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Dump", filename)
+	ret := m.ctrl.Call(m, "Dump")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Dump indicates an expected call of Dump.
-func (mr *MockCacheMockRecorder) Dump(filename any) *gomock.Call {
+func (mr *MockCacheMockRecorder) Dump() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dump", reflect.TypeOf((*MockCache)(nil).Dump), filename)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dump", reflect.TypeOf((*MockCache)(nil).Dump))
 }
 
 // Get mocks base method.
@@ -172,4 +172,42 @@ func (m *MockCache) TransactionType() TransactionType {
 func (mr *MockCacheMockRecorder) TransactionType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransactionType", reflect.TypeOf((*MockCache)(nil).TransactionType))
+}
+
+// MockShardIndexResolver is a mock of ShardIndexResolver interface.
+type MockShardIndexResolver struct {
+	ctrl     *gomock.Controller
+	recorder *MockShardIndexResolverMockRecorder
+	isgomock struct{}
+}
+
+// MockShardIndexResolverMockRecorder is the mock recorder for MockShardIndexResolver.
+type MockShardIndexResolverMockRecorder struct {
+	mock *MockShardIndexResolver
+}
+
+// NewMockShardIndexResolver creates a new mock instance.
+func NewMockShardIndexResolver(ctrl *gomock.Controller) *MockShardIndexResolver {
+	mock := &MockShardIndexResolver{ctrl: ctrl}
+	mock.recorder = &MockShardIndexResolverMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockShardIndexResolver) EXPECT() *MockShardIndexResolverMockRecorder {
+	return m.recorder
+}
+
+// GetShardIndex mocks base method.
+func (m *MockShardIndexResolver) GetShardIndex(key string) uint32 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardIndex", key)
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// GetShardIndex indicates an expected call of GetShardIndex.
+func (mr *MockShardIndexResolverMockRecorder) GetShardIndex(key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardIndex", reflect.TypeOf((*MockShardIndexResolver)(nil).GetShardIndex), key)
 }

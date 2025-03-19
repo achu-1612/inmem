@@ -69,6 +69,7 @@ func (c *LFUCache) Put(key string, shardIdx uint32) {
 	}
 
 	elem := c.frequency[1].PushFront(newEntry)
+	c.cache[key] = elem
 
 	c.cache[key] = elem
 	c.size++
@@ -95,8 +96,7 @@ func (c *LFUCache) incrementFrequency(elem *list.Element) {
 	if c.frequency[entry.frequency] == nil {
 		c.frequency[entry.frequency] = list.New()
 	}
-
-	c.frequency[entry.frequency].PushFront(elem)
+	c.frequency[entry.frequency].PushFront(entry)
 }
 
 // evict evicts the least frequently used item
