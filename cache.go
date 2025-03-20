@@ -46,7 +46,7 @@ type txStore struct {
 type cache struct {
 	items map[string]Item
 
-	mu        *sync.Mutex
+	mu        *sync.RWMutex
 	finalizer func(string, any)
 
 	pq    PriorityQueue
@@ -69,7 +69,7 @@ type cache struct {
 func NewCache(ctx context.Context, opt Options, index int) Cache {
 	c := &cache{
 		items:          make(map[string]Item),
-		mu:             &sync.Mutex{},
+		mu:             &sync.RWMutex{},
 		finalizer:      opt.Finalizer,
 		pq:             make(PriorityQueue, 0),
 		timer:          time.NewTimer(time.Hour),
@@ -127,8 +127,8 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 
 // Size returns the number of items in the cache.
 func (c *cache) Size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return len(c.items)
 }
@@ -234,9 +234,6 @@ func (c *cache) Set(k string, v any, ttl int64) {
 		item.Expiration = time.Now().UnixNano() + ttl*int64(time.Second)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 		stage.changes[k] = item
@@ -244,11 +241,16 @@ func (c *cache) Set(k string, v any, ttl int64) {
 		delete(stage.deletes, k)
 
 		c.l.Debugf("set key '%s' in transaction", k)
-	} else {
-		c.setItem(k, item)
 
-		c.l.Debugf("set key '%s' in store", k)
+		return
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.setItem(k, item)
+
+	c.l.Debugf("set key '%s' in store", k)
 }
 
 func (c *cache) setItem(k string, item Item) {
@@ -278,9 +280,6 @@ func (c *cache) setItem(k string, item Item) {
 
 // Get returns a value from the cache given a key.
 func (c *cache) Get(k string) (any, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 
@@ -297,6 +296,9 @@ func (c *cache) Get(k string) (any, bool) {
 		}
 	}
 
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	item, ok := c.items[k]
 	if !ok {
 		c.l.Debugf("key '%s' not found in store", k)
@@ -311,9 +313,6 @@ func (c *cache) Get(k string) (any, bool) {
 
 // Delete deletes a key from the cache.
 func (c *cache) Delete(k string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 
@@ -322,11 +321,16 @@ func (c *cache) Delete(k string) {
 		stage.deletes[k] = struct{}{}
 
 		c.l.Debugf("delete key '%s' in transaction", k)
-	} else {
-		c.deleteItem(k)
 
-		c.l.Debugf("delete key '%s' from store", k)
+		return
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.deleteItem(k)
+
+	c.l.Debugf("delete key '%s' from store", k)
 }
 
 func (c *cache) deleteItem(k string) {
@@ -358,12 +362,12 @@ func (c *cache) deleteItem(k string) {
 
 // Begin starts a new transaction.
 func (c *cache) Begin() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		return fmt.Errorf("transaction already in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.txStage[c.getStageID()] = &txStore{
 		changes: make(map[string]Item),
@@ -377,12 +381,12 @@ func (c *cache) Begin() error {
 
 // Commit commits the current transaction.
 func (c *cache) Commit() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if !c.InTransaction() {
 		return fmt.Errorf("no transaction in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	stageID := c.getStageID()
 
@@ -407,12 +411,12 @@ func (c *cache) Commit() error {
 
 // Rollback rolls back the current transaction.
 func (c *cache) Rollback() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if !c.InTransaction() {
 		return fmt.Errorf("no transaction in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	stageID := c.getStageID()
 
@@ -437,8 +441,8 @@ func getGoroutineID() uint64 {
 func (c *cache) save(w io.Writer) error {
 	enc := gob.NewEncoder(w)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return enc.Encode(&c.items)
 }
@@ -495,6 +499,8 @@ func (c *cache) load() error {
 
 	now := time.Now()
 
+	// while loading the data from a dump file,
+	// if the key is expired, the finalizer won't be called for the key.
 	for k, v := range items {
 		if !v.Expired(now) {
 			c.setItem(k, v)

@@ -16,11 +16,12 @@ func TestGarbageCollector(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -64,11 +65,12 @@ func TestClear(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -100,11 +102,12 @@ func TestClear(t *testing.T) {
 func TestInTransaction(t *testing.T) {
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: func(k string, v any) {},
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -179,6 +182,7 @@ func TestGetStageID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				txType: tt.txType,
+				l:      newLogger("", true, false),
 			}
 
 			stageID := c.getStageID()
@@ -202,11 +206,12 @@ func TestSetItem(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 
 	c.cond = sync.NewCond(c.mu)
@@ -277,11 +282,12 @@ func TestDeleteItem(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -378,11 +384,12 @@ func TestBegin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
-				mu:        &sync.Mutex{},
+				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
+				l:         newLogger("", true, false),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -455,11 +462,12 @@ func TestCommit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
-				mu:        &sync.Mutex{},
+				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
+				l:         newLogger("", true, false),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -546,11 +554,12 @@ func TestRollback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
-				mu:        &sync.Mutex{},
+				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
+				l:         newLogger("", true, false),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -593,11 +602,12 @@ func TestDelete_WithoutTx(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -658,11 +668,12 @@ func TestDelete_WithTx(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -705,11 +716,12 @@ func TestGet(t *testing.T) {
 
 	c := &cache{
 		items:     make(map[string]Item),
-		mu:        &sync.Mutex{},
+		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
 		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
+		l:         newLogger("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -863,11 +875,12 @@ func TestSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				items:     make(map[string]Item),
-				mu:        &sync.Mutex{},
+				mu:        &sync.RWMutex{},
 				finalizer: finalizer,
 				pq:        make(PriorityQueue, 0),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
+				l:         newLogger("", true, false),
 			}
 			c.cond = sync.NewCond(c.mu)
 
