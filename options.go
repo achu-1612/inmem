@@ -1,16 +1,42 @@
 package inmem
 
-import "time"
+import (
+	"time"
+)
 
 // Options represents the options for the cache store initialization.
 type Options struct {
-	Finalizer       func(string, any)
-	TransactionType TransactionType
-	Sync            bool
-	SyncFolderPath  string
-	SyncInterval    time.Duration
+	// Finalizer is the finalizer function that is called when an item is evicted from the cache.
+	// Note: When in transaction, the finalizer is called after the transaction is committed.
+	Finalizer func(string, any)
 
-	Sharding     bool
-	ShardCount   int
-	HashFunction func(string) uint32
+	// TransactionType is the type of transaction to be used.
+	// Options are:
+	// 1. Optimistic
+	// 2. Pessimistic
+	TransactionType TransactionType
+
+	// Sync enables the cache to be synchronized with a folder.
+	// When sharding is enabled, the defined folder will container mutliple .gob files (one per peach shard)
+	Sync bool
+	// SyncFolderPath is the path to the folder where the cache will be synchronized.
+	SyncFolderPath string
+	// SyncInterval is the interval at which the cache will be synchronized.
+	SyncInterval time.Duration
+
+	// Sharding enables the cache to be sharded.
+	Sharding bool
+	// ShardCount is the number of shards to be created.
+	ShardCount int
+	// ShardIndexCache enables the cache to store the shard index for a given key.
+	// Note: It will save calling the hash function for the same key multiple times.
+	ShardIndexCache bool
+	// ShardIndexCacheSize is the size of the shard index cache.
+	// Note: keys will be flushed from the key index cache, once the size exceeds the defined value.
+	ShardIndexCacheSize int
+
+	// SupressLog suppresses the logs.
+	SupressLog bool
+	// DebugLogs enables the debug logs.
+	DebugLogs bool
 }

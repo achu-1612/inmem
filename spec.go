@@ -41,3 +41,8 @@ type Cache interface {
 	// Rollback rolls back a transaction.
 	Rollback() error
 }
+
+type ShardIndexResolver interface {
+	// GetShardIndex returns the shard index for a given key.
+	GetShardIndex(key string) uint32
+}

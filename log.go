@@ -1,61 +1,94 @@
 package inmem
 
 import (
-	"io"
 	"os"
 
 	log "github.com/sirupsen/logrus"
 )
 
-var std *log.Logger
+type logger interface {
+	Info(args ...interface{})
+	Infof(format string, args ...interface{})
+	Debug(args ...interface{})
+	Debugf(format string, args ...interface{})
+	Warn(args ...interface{})
+	Warnf(format string, args ...interface{})
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+}
 
-func init() {
-	std = log.New()
+type stdLogger struct {
+	std  *log.Logger
+	name string
+}
 
-	std.SetOutput(os.Stdout)
-	std.SetLevel(log.DebugLevel)
+func (l *stdLogger) Info(args ...interface{}) {
+	l.std.WithField("cache", l.name).Info(args...)
+}
 
-	std.SetFormatter(&log.TextFormatter{
+func (l *stdLogger) Infof(format string, args ...interface{}) {
+	l.std.WithField("cache", l.name).Infof(format, args...)
+}
+
+func (l *stdLogger) Debug(args ...interface{}) {
+	l.std.WithField("cache", l.name).Debug(args...)
+}
+
+func (l *stdLogger) Debugf(format string, args ...interface{}) {
+	l.std.WithField("cache", l.name).Debugf(format, args...)
+}
+
+func (l *stdLogger) Warn(args ...interface{}) {
+	l.std.WithField("cache", l.name).Warn(args...)
+}
+
+func (l *stdLogger) Warnf(format string, args ...interface{}) {
+	l.std.WithField("cache", l.name).Warnf(format, args...)
+}
+
+func (l *stdLogger) Error(args ...interface{}) {
+	l.std.WithField("cache", l.name).Error(args...)
+}
+
+func (l *stdLogger) Errorf(format string, args ...interface{}) {
+	l.std.WithField("cache", l.name).Errorf(format, args...)
+}
+
+type supressedLoger struct{}
+
+func (l *supressedLoger) Info(args ...interface{})                  {}
+func (l *supressedLoger) Infof(format string, args ...interface{})  {}
+func (l *supressedLoger) Debug(args ...interface{})                 {}
+func (l *supressedLoger) Debugf(format string, args ...interface{}) {}
+func (l *supressedLoger) Warn(args ...interface{})                  {}
+func (l *supressedLoger) Warnf(format string, args ...interface{})  {}
+func (l *supressedLoger) Error(args ...interface{})                 {}
+func (l *supressedLoger) Errorf(format string, args ...interface{}) {}
+
+func newLogger(name string, suprresed, debugLogs bool) logger {
+	if suprresed {
+		return &supressedLoger{}
+	}
+
+	l := log.New()
+	l.SetOutput(os.Stdout)
+	l.SetLevel(log.InfoLevel)
+
+	if debugLogs {
+		l.SetLevel(log.DebugLevel)
+	}
+
+	l.SetFormatter(&log.TextFormatter{
 		DisableColors:   false,
 		ForceColors:     true,
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 		PadLevelText:    true,
 	})
-}
 
-func SetOutput(o io.Writer) {
-	std.SetOutput(o)
-}
+	return &stdLogger{
+		std:  l,
+		name: name,
+	}
 
-func Info(args ...interface{}) {
-	std.Info(args...)
-}
-
-func Infof(format string, args ...interface{}) {
-	std.Infof(format, args...)
-}
-
-func Debug(args ...interface{}) {
-	std.Debug(args...)
-}
-
-func Debugf(format string, args ...interface{}) {
-	std.Debugf(format, args...)
-}
-
-func Warn(args ...interface{}) {
-	std.Warn(args...)
-}
-
-func Warnf(format string, args ...interface{}) {
-	std.Warnf(format, args...)
-}
-
-func Error(args ...interface{}) {
-	std.Error(args...)
-}
-
-func Errorf(format string, args ...interface{}) {
-	std.Errorf(format, args...)
 }

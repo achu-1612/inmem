@@ -12,17 +12,15 @@ const (
 
 // shardedCache represents a sharded cache instance.
 type shardedCache struct {
-	shards    []Cache
-	numShards int
-	hashFn    func(string) uint32
+	shards        []Cache
+	numShards     int
+	indexResolver ShardIndexResolver
 }
 
 // NewShardedCache returns a new sharded cache instance.
 func NewShardedCache(ctx context.Context, opt Options) Cache {
 	numShards := opt.ShardCount
 	if numShards < minNumShards {
-		Warnf("Invalid number of shards: %d, using default number of shards: %d", numShards, defaultNumShards)
-
 		numShards = defaultNumShards // Default number of shards
 	}
 
@@ -34,31 +32,25 @@ func NewShardedCache(ctx context.Context, opt Options) Cache {
 	sc := &shardedCache{
 		shards:    shards,
 		numShards: numShards,
-		hashFn:    opt.HashFunction,
 	}
 
-	if sc.hashFn == nil {
-		Warn("No hash function provided, using default hash function")
-
-		sc.hashFn = defaultHashFn
+	if opt.ShardIndexCache {
+		sc.indexResolver = &shardResolverWithCache{
+			numShards: numShards,
+			lfu:       NewLFUCache(opt.ShardIndexCacheSize),
+		}
+	} else {
+		sc.indexResolver = &shardResolverWithoutCache{
+			numShards: numShards,
+		}
 	}
 
 	return sc
 }
 
-// defaultHashFn is the default hash function used to determine the shard for a given key.
-func defaultHashFn(key string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(key))
-
-	return h.Sum32()
-}
-
 // getShard returns the shard for a given key.
 func (sc *shardedCache) getShard(key string) Cache {
-	shardIndex := sc.hashFn(key) % uint32(sc.numShards)
-
-	return sc.shards[shardIndex]
+	return sc.shards[sc.indexResolver.GetShardIndex(key)]
 }
 
 // Size returns the total number of items in the cache.
@@ -145,4 +137,38 @@ func (sc *shardedCache) Rollback() error {
 	}
 
 	return nil
+}
+
+var _ ShardIndexResolver = &shardResolverWithoutCache{}
+var _ ShardIndexResolver = &shardResolverWithCache{}
+
+type shardResolverWithoutCache struct {
+	numShards int
+}
+
+func (sr *shardResolverWithoutCache) GetShardIndex(key string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(key))
+
+	return h.Sum32() % uint32(sr.numShards)
+}
+
+type shardResolverWithCache struct {
+	numShards int
+	lfu       *LFUCache
+}
+
+func (sr *shardResolverWithCache) GetShardIndex(key string) uint32 {
+	if shardIdx, ok := sr.lfu.Get(key); ok {
+		return shardIdx
+	}
+
+	h := fnv.New32a()
+	h.Write([]byte(key))
+
+	idx := h.Sum32() % uint32(sr.numShards)
+
+	sr.lfu.Put(key, idx)
+
+	return idx
 }

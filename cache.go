@@ -46,7 +46,7 @@ type txStore struct {
 type cache struct {
 	items map[string]Item
 
-	mu        *sync.Mutex
+	mu        *sync.RWMutex
 	finalizer func(string, any)
 
 	pq    PriorityQueue
@@ -61,13 +61,15 @@ type cache struct {
 	syncInterval   time.Duration
 
 	storeIndex int
+
+	l logger
 }
 
 // New returns a new Cache instance.
 func NewCache(ctx context.Context, opt Options, index int) Cache {
 	c := &cache{
 		items:          make(map[string]Item),
-		mu:             &sync.Mutex{},
+		mu:             &sync.RWMutex{},
 		finalizer:      opt.Finalizer,
 		pq:             make(PriorityQueue, 0),
 		timer:          time.NewTimer(time.Hour),
@@ -77,16 +79,17 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 		syncFolderPath: opt.SyncFolderPath,
 		syncInterval:   opt.SyncInterval,
 		storeIndex:     index,
+		l:              newLogger("store-"+fmt.Sprint(index), opt.SupressLog, opt.DebugLogs),
 	}
 
 	if c.finalizer == nil {
-		Warn("no finalizer provided, using default finalizer")
+		c.l.Warn("no finalizer provided, using default finalizer")
 
 		c.finalizer = func(k string, v any) {}
 	}
 
 	if c.txType == "" {
-		Warn("no transaction type provided, using optimistic transactions")
+		c.l.Warn("no transaction type provided, using optimistic transactions")
 
 		c.txType = TransactionTypeOptimistic
 	}
@@ -97,19 +100,19 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 		if c.syncFolderPath == "" {
 			c.syncFolderPath = filepath.Join(os.TempDir(), "inmem")
 
-			Warnf("no sync folder path provided, using default path: %s", c.syncFolderPath)
+			c.l.Warnf("no sync folder path provided, using default path: %s", c.syncFolderPath)
 		}
 
 		if c.syncInterval == 0 {
 			c.syncInterval = defaultSyncInterval
 
-			Warnf("no sync interval provided, using default interval: %s", c.syncInterval)
+			c.l.Warnf("no sync interval provided, using default interval: %s", c.syncInterval)
 		}
 
 		if err := c.load(); err != nil {
-			Errorf("loading cache from file: %v", err)
+			c.l.Errorf("loading cache from file: %v", err)
 		} else {
-			Debugf("cache data loaded from folder: %s store size: %d", c.syncFolderPath, c.Size())
+			c.l.Debugf("cache data loaded from folder: %s store size: %d", c.syncFolderPath, c.Size())
 		}
 
 		// start the disk sync processgo c.diskSync(ctx)
@@ -124,8 +127,8 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 
 // Size returns the number of items in the cache.
 func (c *cache) Size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return len(c.items)
 }
@@ -162,7 +165,7 @@ func (c *cache) Clear() {
 	c.timer.Stop()
 	c.timer.Reset(time.Hour)
 
-	Debugf("cache cleared")
+	c.l.Debugf("cache cleared")
 }
 
 // garbageCollector is a background process that evicts expired items from the cache.
@@ -211,7 +214,7 @@ func (c *cache) diskSync(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if err := c.Dump(); err != nil {
-				Errorf("saving cache data to file: %v", err)
+				c.l.Errorf("saving cache data to file: %v", err)
 			}
 
 		case <-ctx.Done():
@@ -231,21 +234,23 @@ func (c *cache) Set(k string, v any, ttl int64) {
 		item.Expiration = time.Now().UnixNano() + ttl*int64(time.Second)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 		stage.changes[k] = item
 
 		delete(stage.deletes, k)
 
-		Debugf("set key '%s' in transaction", k)
-	} else {
-		c.setItem(k, item)
+		c.l.Debugf("set key '%s' in transaction", k)
 
-		Debugf("set key '%s' in store", k)
+		return
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.setItem(k, item)
+
+	c.l.Debugf("set key '%s' in store", k)
 }
 
 func (c *cache) setItem(k string, item Item) {
@@ -275,42 +280,39 @@ func (c *cache) setItem(k string, item Item) {
 
 // Get returns a value from the cache given a key.
 func (c *cache) Get(k string) (any, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 
 		if item, ok := stage.changes[k]; ok {
-			Debugf("get key '%s' from transaction", k)
+			c.l.Debugf("get key '%s' from transaction", k)
 
 			return item.Object, true
 		}
 
 		if _, ok := stage.deletes[k]; ok {
-			Debugf("key '%s' deleted in transaction", k)
+			c.l.Debugf("key '%s' deleted in transaction", k)
 
 			return nil, false
 		}
 	}
 
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	item, ok := c.items[k]
 	if !ok {
-		Debugf("key '%s' not found in store", k)
+		c.l.Debugf("key '%s' not found in store", k)
 
 		return nil, false
 	}
 
-	Debugf("get key '%s' from store", k)
+	c.l.Debugf("get key '%s' from store", k)
 
 	return item.Object, true
 }
 
 // Delete deletes a key from the cache.
 func (c *cache) Delete(k string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		stage := c.txStage[c.getStageID()]
 
@@ -318,12 +320,17 @@ func (c *cache) Delete(k string) {
 
 		stage.deletes[k] = struct{}{}
 
-		Debugf("delete key '%s' in transaction", k)
-	} else {
-		c.deleteItem(k)
+		c.l.Debugf("delete key '%s' in transaction", k)
 
-		Debugf("delete key '%s' from store", k)
+		return
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.deleteItem(k)
+
+	c.l.Debugf("delete key '%s' from store", k)
 }
 
 func (c *cache) deleteItem(k string) {
@@ -355,31 +362,31 @@ func (c *cache) deleteItem(k string) {
 
 // Begin starts a new transaction.
 func (c *cache) Begin() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.InTransaction() {
 		return fmt.Errorf("transaction already in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.txStage[c.getStageID()] = &txStore{
 		changes: make(map[string]Item),
 		deletes: make(map[string]struct{}),
 	}
 
-	Debugf("transaction started. stage- %d", c.getStageID())
+	c.l.Debugf("transaction started. stage- %d", c.getStageID())
 
 	return nil
 }
 
 // Commit commits the current transaction.
 func (c *cache) Commit() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if !c.InTransaction() {
 		return fmt.Errorf("no transaction in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	stageID := c.getStageID()
 
@@ -397,25 +404,25 @@ func (c *cache) Commit() error {
 
 	delete(c.txStage, stageID)
 
-	Debugf("transaction committed. stage- %d", stageID)
+	c.l.Debugf("transaction committed. stage- %d", stageID)
 
 	return nil
 }
 
 // Rollback rolls back the current transaction.
 func (c *cache) Rollback() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if !c.InTransaction() {
 		return fmt.Errorf("no transaction in progress")
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	stageID := c.getStageID()
 
 	delete(c.txStage, stageID)
 
-	Debugf("transaction rolled back. stage- %d", stageID)
+	c.l.Debugf("transaction rolled back. stage- %d", stageID)
 
 	return nil
 }
@@ -434,8 +441,8 @@ func getGoroutineID() uint64 {
 func (c *cache) save(w io.Writer) error {
 	enc := gob.NewEncoder(w)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return enc.Encode(&c.items)
 }
@@ -461,10 +468,10 @@ func (c *cache) Dump() error {
 
 	fi, err := fp.Stat()
 	if err != nil {
-		Errorf("getting file info: %v", err)
+		c.l.Errorf("getting file info: %v", err)
 	}
 
-	Debugf("cache data saved to file: %s store size: %d file size: %d", c.getSyncFilePath(), c.Size(), fi.Size())
+	c.l.Debugf("cache data saved to file: %s store size: %d file size: %d", c.getSyncFilePath(), c.Size(), fi.Size())
 
 	return nil
 }
@@ -492,6 +499,8 @@ func (c *cache) load() error {
 
 	now := time.Now()
 
+	// while loading the data from a dump file,
+	// if the key is expired, the finalizer won't be called for the key.
 	for k, v := range items {
 		if !v.Expired(now) {
 			c.setItem(k, v)
@@ -500,7 +509,7 @@ func (c *cache) load() error {
 
 	c.mu.Unlock()
 
-	Debugf("cache data loaded from file: %s store size: %d", fileName, c.Size())
+	c.l.Debugf("cache data loaded from file: %s store size: %d", fileName, c.Size())
 
 	return nil
 }
