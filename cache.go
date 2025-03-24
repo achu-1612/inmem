@@ -63,10 +63,35 @@ type cache struct {
 	storeIndex int
 
 	l logger
+
+	e Eviction
+}
+
+type cacheEvictionEntry struct {
+	key       string
+	frequency int
+}
+
+func (e *cacheEvictionEntry) Value() any {
+	return nil
+}
+
+func (e *cacheEvictionEntry) Set(value any) {}
+
+func (e *cacheEvictionEntry) Frequency() int {
+	return e.frequency
+}
+
+func (e *cacheEvictionEntry) IncrementFrequency() {
+	e.frequency++
+}
+
+func (e *cacheEvictionEntry) Key() string {
+	return e.key
 }
 
 // New returns a new Cache instance.
-func NewCache(ctx context.Context, opt Options, index int) Cache {
+func NewCache(ctx context.Context, opt Options, index int) (Cache, error) {
 	c := &cache{
 		items:          make(map[string]Item),
 		mu:             &sync.RWMutex{},
@@ -81,6 +106,21 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 		storeIndex:     index,
 		l:              newLogger("store-"+fmt.Sprint(index), opt.SupressLog, opt.DebugLogs),
 	}
+
+	evp, err := NewEviction(EvictionOptions{
+		Policy:    opt.EvictionPolicy,
+		MaxSize:   opt.MaxSize,
+		Allocator: func(s string) LFUResource { return &cacheEvictionEntry{key: s} },
+		Finalizer: func(s string, a any) {
+			c.deleteItem(s)
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("setting up eviction : %v", err)
+	}
+
+	c.e = evp
 
 	if c.finalizer == nil {
 		c.l.Warn("no finalizer provided, using default finalizer")
@@ -122,7 +162,7 @@ func NewCache(ctx context.Context, opt Options, index int) Cache {
 	// start the garbage collector for key eviction
 	go c.garbageCollector(ctx)
 
-	return c
+	return c, nil
 }
 
 // Size returns the number of items in the cache.
@@ -164,7 +204,7 @@ func (c *cache) Clear() {
 	c.pq = make(PriorityQueue, 0)
 	c.timer.Stop()
 	c.timer.Reset(time.Hour)
-
+	c.e.Clear()
 	c.l.Debugf("cache cleared")
 }
 
@@ -184,6 +224,7 @@ func (c *cache) garbageCollector(ctx context.Context) {
 			item, ok := c.items[expired.key]
 			if ok {
 				delete(c.items, expired.key)
+
 				c.finalizer(expired.key, item.Object)
 			}
 		}
@@ -256,6 +297,8 @@ func (c *cache) Set(k string, v any, ttl int64) {
 func (c *cache) setItem(k string, item Item) {
 	c.items[k] = item
 
+	c.e.Put(k, nil)
+
 	if item.Expiration == 0 {
 		return
 	}
@@ -299,6 +342,12 @@ func (c *cache) Get(k string) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	if _, ok := c.e.Get(k); !ok {
+		c.l.Debugf("key '%s' not found in eviction policy", k)
+
+		return nil, false
+	}
+
 	item, ok := c.items[k]
 	if !ok {
 		c.l.Debugf("key '%s' not found in store", k)
@@ -341,6 +390,8 @@ func (c *cache) deleteItem(k string) {
 
 	delete(c.items, k)
 	c.finalizer(k, item.Object)
+
+	c.e.Delete(k)
 
 	if item.Expiration == 0 {
 		return
@@ -480,7 +531,7 @@ func (c *cache) Dump() error {
 func (c *cache) load() error {
 	fileName := c.getSyncFilePath()
 
-	fp, err := os.Open(fileName)
+	fp, err := os.Open(filepath.Clean(fileName))
 	if err != nil {
 		return err
 	}
