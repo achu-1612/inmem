@@ -18,7 +18,10 @@ func TestStore(t *testing.T) {
 		// Add other options as needed
 	}
 
-	cache := NewShardedCache(ctx, opt)
+	cache, err := NewShardedCache(ctx, opt)
+	if err != nil {
+		t.Error(err)
+	}
 
 	n := 200000
 
@@ -46,7 +49,10 @@ func BenchmarkShardedCache(b *testing.B) {
 		ShardIndexCacheSize: 100,
 	}
 
-	cache := NewShardedCache(ctx, opt)
+	cache, err := NewShardedCache(ctx, opt)
+	if err != nil {
+		b.Error(err)
+	}
 
 	b.Run("Write", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -78,7 +84,10 @@ func BenchmarkMemoryUsage(b *testing.B) {
 		// Add other options as needed
 	}
 
-	cache := NewShardedCache(ctx, opt)
+	cache, err := NewShardedCache(ctx, opt)
+	if err != nil {
+		b.Error(err)
+	}
 
 	b.Run("MemoryUsage", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -101,7 +110,10 @@ func BenchmarkStore(b *testing.B) {
 		// Add other options as needed
 	}
 
-	cache := NewShardedCache(ctx, opt)
+	cache, err := NewShardedCache(ctx, opt)
+	if err != nil {
+		b.Error(err)
+	}
 
 	n := 200000
 
@@ -130,7 +142,10 @@ func BenchmarkGet(b *testing.B) {
 		// Add other options as needed
 	}
 
-	cache := NewShardedCache(ctx, opt)
+	cache, err := NewShardedCache(ctx, opt)
+	if err != nil {
+		b.Error(err)
+	}
 
 	n := 2000
 

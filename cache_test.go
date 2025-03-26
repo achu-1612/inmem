@@ -3,6 +3,7 @@ package inmem
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -71,6 +72,7 @@ func TestClear(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -212,6 +214,7 @@ func TestSetItem(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 
 	c.cond = sync.NewCond(c.mu)
@@ -288,6 +291,7 @@ func TestDeleteItem(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -468,6 +472,7 @@ func TestCommit(t *testing.T) {
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
+				e:         &NilEviction{},
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -560,6 +565,7 @@ func TestRollback(t *testing.T) {
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
+				e:         &NilEviction{},
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -608,6 +614,7 @@ func TestDelete_WithoutTx(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -674,6 +681,7 @@ func TestDelete_WithTx(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -722,6 +730,7 @@ func TestGet(t *testing.T) {
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		e:         &NilEviction{},
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -881,6 +890,7 @@ func TestSet(t *testing.T) {
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
+				e:         &NilEviction{},
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -902,5 +912,29 @@ func TestSet(t *testing.T) {
 				t.Errorf("expected item with key %s to have value %v, got %v", tt.key, tt.expectVal, val.Object)
 			}
 		})
+	}
+}
+
+func TestCacheWithEviction(t *testing.T) {
+	c, err := NewCache(context.Background(), Options{
+		EvictionPolicy: EvictionPolicyLFU,
+		MaxSize:        10,
+	}, 0)
+
+	if err != nil {
+		t.Fatalf("unexpected error creating cache: %v", err)
+	}
+
+	// Add 10 items to the cache
+	for i := 0; i < 10; i++ {
+		c.Set(fmt.Sprintf("%d", i), i, 0)
+	}
+
+	// Add another item to the cache
+	c.Set(fmt.Sprintf("%d", 10), 10, 0)
+
+	// Check if the first item has been evicted
+	if _, ok := c.Get("0"); ok {
+		t.Errorf("expected item to be evicted")
 	}
 }

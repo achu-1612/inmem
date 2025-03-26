@@ -12,14 +12,14 @@ func New(ctx context.Context, opt Options) (Cache, error) {
 
 	if opt.SyncFolderPath != "" {
 		// create folder if not exists
-		if err := os.MkdirAll(opt.SyncFolderPath, os.ModePerm); err != nil {
+		if err := os.MkdirAll(opt.SyncFolderPath, 0750); err != nil {
 			return nil, err
 		}
 	}
 
 	if opt.Sharding {
-		return NewShardedCache(ctx, opt), nil
+		return NewShardedCache(ctx, opt)
 	}
 
-	return NewCache(ctx, opt, 0), nil
+	return NewCache(ctx, opt, 0)
 }
