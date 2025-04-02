@@ -1,6 +1,6 @@
 # inmem
 
-`inmem` is an in-memory cache library for Go, designed to provide a simple and efficient caching mechanism with support for sharding, transactions, and persistence.
+`inmem` is an in-memory cache library for Go, designed to provide a simple and efficient caching mechanism.
 
 ## Features
 
@@ -8,7 +8,7 @@
 - **Sharding**: Distribute cache items across multiple shards for improved performance.
 - **Transactions**: Support for atomic and optimistic transactions.
 - **Persistence**: Periodically save cache data to disk and load it on startup.
-- **Customizable**: Configure cache options such as sync interval, sharding, and hash functions.
+- **Eviction**: TTL based, LFU eviction policy for the keys.
 
 ## Installation
 
@@ -61,6 +61,8 @@ func main() {
     cache, err := inmem.New(context.Background(), inmem.Options{
         Sharding:   true,
         ShardCount: 4,
+        ShardIndexCacheSize: 100,
+        ShardIndexCache: true, // optional. Enable shard index caching to avoid hash caclulation for the keys
     })
     if err != nil {
         panic(err)
@@ -88,7 +90,7 @@ import (
 
 func main() {
     cache, err := inmem.New(context.Background(), inmem.Options{
-        TransactionType: inmem.TransactionTypeAtomic,
+        TransactionType: inmem.TransactionTypeOptimistic,
     })
     if err != nil {
         panic(err)
@@ -138,45 +140,74 @@ func main() {
 }
 ```
 
-## API
+### Eviction
 
-### `func New(ctx context.Context, opt Options) (Cache, error)`
+```go
+package main
 
-Creates a new cache instance with the given options.
+import (
+    "context"
+    "github.com/achu-1612/inmem"
+)
 
-### `func (c *cache) Set(key string, value any, ttl int64)`
+func main() {
+    cache, err := inmem.New(context.Background(), inmem.Options{
+        EvictionPolicy: EvictionPolicyLFU,
+        MaxSize: 2,
+    })
+    if err != nil {
+        panic(err)
+    }
 
-Sets a key in the cache with a value and a time-to-live (TTL) in seconds.
+    cache.Set("key1", "value", 0)
+    cache.Set("key2", "value", 0)
+    cache.Get("key2")
+    cache.Set("key3", "value", 0) // key1 will be evicted as key2 has access frequency as 2 and key1 has 1
+}
+```
 
-### `func (c *cache) Get(key string) (any, bool)`
+### Just the LFU cache
 
-Gets a value from the cache given a key.
+```go
 
-### `func (c *cache) Delete(key string)`
+package main
 
-Deletes a key from the cache.
+import (
+    "context"
+    "github.com/achu-1612/inmem"
+)
 
-### `func (c *cache) Clear()`
+func main() {
+    cache, err := inmem.NewEviction(inmem.EvictionOptions{
+        Policy: EvictionPolicyLFU,
+        MaxSize: 2,
+        Allocator: nil, // optional
+        Finalizer: nil, // optional
+    })
+    if err != nil {
+        panic(err)
+    }
 
-Clears all items from the cache.
+    cache.Set("key1", "value")
+    cache.Set("key2", "value")
+    cache.Get("key2")
+    cache.Set("key3", "value" // key1 will be evicted as key2 has access frequency as 2 and key1 has 1
+}
+// Implment LFUResource, an entry for the LFU cache.
+// If not default eviction entry will be use to deal with the cache data.
 
-### `func (c *cache) Begin() error`
 
-Begins a new transaction.
+```
 
-### `func (c *cache) Commit() error`
-
-Commits the current transaction.
-
-### `func (c *cache) Rollback() error`
-
-Rolls back the current transaction.
-
-### `func (c *cache) Dump() error`
-
-Saves the cache data to disk.
 
 ## License
 
 This project is licensed under the MIT License.
 
+## Contributing
+
+Contributions are welcome! Open an issue or submit a pull request.
+
+## Contact
+
+For questions or support, reach out to [me](https://github.com/achu-1612)
