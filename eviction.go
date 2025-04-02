@@ -57,7 +57,6 @@ func (c *LFUCache) Put(key string, data any) {
 	}
 
 	elem := c.frequency[1].PushFront(res)
-	c.cache[key] = elem
 
 	c.cache[key] = elem
 	c.size++
@@ -138,6 +137,7 @@ func (c *LFUCache) deleteElement(elem *list.Element) {
 	}
 
 	delete(c.cache, entry.Key())
+
 	c.size--
 }
 
@@ -165,7 +165,7 @@ func (n *NilEviction) Get(key string) (any, bool) {
 
 func (n *NilEviction) Clear() {}
 
-// NewLFUCache returns a new LFUCache instance
+// NewEviction returns a new eviction implementation based on the options provided.
 func NewEviction(
 	opts EvictionOptions,
 ) (Eviction, error) {

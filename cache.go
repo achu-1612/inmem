@@ -166,7 +166,7 @@ func NewCache(ctx context.Context, opt Options, index int) (Cache, error) {
 			c.l.Debugf("cache data loaded from folder: %s store size: %d", c.syncFolderPath, c.Size())
 		}
 
-		// start the disk sync processgo c.diskSync(ctx)
+		// start the disk sync process
 		go c.diskSync(ctx)
 	}
 
@@ -189,8 +189,8 @@ func (c *cache) TransactionType() TransactionType {
 	return c.txType
 }
 
-// InTransaction returns true if the cache is in a transaction.
-func (c *cache) InTransaction() bool {
+// inTransaction returns true if the cache is in a transaction.
+func (c *cache) inTransaction() bool {
 	_, ok := c.txStage[c.getStageID()]
 
 	return ok
@@ -286,7 +286,7 @@ func (c *cache) Set(k string, v any, ttl int64) {
 		item.Expiration = time.Now().UnixNano() + ttl*int64(time.Second)
 	}
 
-	if c.InTransaction() {
+	if c.inTransaction() {
 		stage := c.txStage[c.getStageID()]
 		stage.changes[k] = item
 
@@ -334,7 +334,7 @@ func (c *cache) setItem(k string, item Item) {
 
 // Get returns a value from the cache given a key.
 func (c *cache) Get(k string) (any, bool) {
-	if c.InTransaction() {
+	if c.inTransaction() {
 		stage := c.txStage[c.getStageID()]
 
 		if item, ok := stage.changes[k]; ok {
@@ -353,6 +353,7 @@ func (c *cache) Get(k string) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	// Even if the eviction policy is not used, the nil/no-op eviction policy will return true for any key.
 	if _, ok := c.e.Get(k); !ok {
 		c.l.Debugf("key '%s' not found in eviction policy", k)
 
@@ -373,7 +374,7 @@ func (c *cache) Get(k string) (any, bool) {
 
 // Delete deletes a key from the cache.
 func (c *cache) Delete(k string) {
-	if c.InTransaction() {
+	if c.inTransaction() {
 		stage := c.txStage[c.getStageID()]
 
 		delete(stage.changes, k)
@@ -424,8 +425,8 @@ func (c *cache) deleteItem(k string) {
 
 // Begin starts a new transaction.
 func (c *cache) Begin() error {
-	if c.InTransaction() {
-		return fmt.Errorf("transaction already in progress")
+	if c.inTransaction() {
+		return ErrorInTransaction
 	}
 
 	c.mu.Lock()
@@ -443,8 +444,8 @@ func (c *cache) Begin() error {
 
 // Commit commits the current transaction.
 func (c *cache) Commit() error {
-	if !c.InTransaction() {
-		return fmt.Errorf("no transaction in progress")
+	if !c.inTransaction() {
+		return ErrorInTransaction
 	}
 
 	c.mu.Lock()
@@ -473,8 +474,8 @@ func (c *cache) Commit() error {
 
 // Rollback rolls back the current transaction.
 func (c *cache) Rollback() error {
-	if !c.InTransaction() {
-		return fmt.Errorf("no transaction in progress")
+	if !c.inTransaction() {
+		return ErrNotInTransaction
 	}
 
 	c.mu.Lock()
@@ -522,7 +523,11 @@ func (c *cache) Dump() error {
 		return fmt.Errorf("cache dump: %v", err)
 	}
 
-	defer fp.Close()
+	defer func() {
+		if err := fp.Close(); err != nil {
+			c.l.Errorf("closing file %s: %v", c.getSyncFilePath(), err)
+		}
+	}()
 
 	if err := c.save(fp); err != nil {
 		return fmt.Errorf("cache dump: %v", err)
@@ -547,7 +552,11 @@ func (c *cache) load() error {
 		return err
 	}
 
-	defer fp.Close()
+	defer func() {
+		if err := fp.Close(); err != nil {
+			c.l.Errorf("closing file %s: %v", fileName, err)
+		}
+	}()
 
 	dec := gob.NewDecoder(fp)
 
@@ -572,6 +581,5 @@ func (c *cache) load() error {
 	c.mu.Unlock()
 
 	c.l.Debugf("cache data loaded from file: %s store size: %d", fileName, c.Size())
-
 	return nil
 }

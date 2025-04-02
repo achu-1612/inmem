@@ -1,17 +1,20 @@
 name: Main
-'on':
+
+on:
   push:
     branches:
       - main
   pull_request:
     branches:
       - main
+
 concurrency:
   group: '${{ github.ref }}'
   cancel-in-progress: true
+
 jobs:
-  Validation:
-    name: Validation
+  go-test:
+    name: go-test
     runs-on: self-hosted
     env:
       GOPATH: '${{ github.workspace }}'
@@ -23,22 +26,93 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 1.23.7
-          cache: false
+          cache: true
       - name: Run Unit Tests
         run: |
           cd ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
           make test
-      - name: Run Gosec Security Scanner
-        run: |
-          cd ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
-          make gosec
+  
+  go-lint:
+    name: go-lint
+    runs-on: self-hosted
+    env:
+      GOPATH: '${{ github.workspace }}'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: '${{ env.GOPATH }}/src/github.com/${{ github.repository }}'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.7
+          cache: true
+      - name: Run Go Lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+          version: v2.0
+          args: --timeout 180s
+  
+  spell-check:
+    name:  spell-check
+    runs-on: self-hosted
+    env:
+      GOPATH: '${{ github.workspace }}'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: '${{ env.GOPATH }}/src/github.com/${{ github.repository }}'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.7
+          cache: true
       - name: Run SpellCheck
         run: |
           cd ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
           make spell-check
-      - name: Run Go Lint
-        uses: golangci/golangci-lint-action@v6
+  
+  gosec:
+    name: gosec
+    runs-on: self-hosted
+    env:
+      GOPATH: '${{ github.workspace }}'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-          working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
-          version: v1.60
-          args: --timeout 180s
+          path: '${{ env.GOPATH }}/src/github.com/${{ github.repository }}'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.7
+          cache: true
+      - name: Run Gosec Security Scanner
+        run: |
+          cd ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+          make gosec
+  
+  generate:
+    name: generate
+    runs-on: self-hosted
+    env:
+      GOPATH: '${{ github.workspace }}'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: '${{ env.GOPATH }}/src/github.com/${{ github.repository }}'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.7
+          cache: true
+      - name: Run Gosec Security Scanner
+        run: |
+          cd ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+          go install go.uber.org/mock/mockgen@v0.5.0
+          make generate
+
+          git diff --exit-code > /dev/null 2>&1
+          if [ $? -ne 0 ]; then
+            echo "Code generation has changed files. Please commit the changes."
+            exit 1
+          fi
