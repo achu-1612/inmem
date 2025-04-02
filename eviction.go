@@ -22,7 +22,6 @@ type LFUCache struct {
 	finalizer         func(string, any)
 }
 
-// Get returns the shard index for the given key
 func (c *LFUCache) Get(key string) (any, bool) {
 	if elem, ok := c.cache[key]; ok {
 		c.incrementFrequency(elem)
@@ -33,7 +32,6 @@ func (c *LFUCache) Get(key string) (any, bool) {
 	return nil, false
 }
 
-// Put inserts the key and shard index into the cache
 func (c *LFUCache) Put(key string, data any) {
 	if c.maxSize == 0 {
 		return
@@ -59,7 +57,6 @@ func (c *LFUCache) Put(key string, data any) {
 	}
 
 	elem := c.frequency[1].PushFront(res)
-	c.cache[key] = elem
 
 	c.cache[key] = elem
 	c.size++
@@ -118,7 +115,6 @@ func (c *LFUCache) evict() {
 	}
 }
 
-// Delete deletes the key from the lfu cache.
 func (c *LFUCache) Delete(key string) {
 	if elem, ok := c.cache[key]; ok {
 		c.deleteElement(elem)
@@ -141,9 +137,11 @@ func (c *LFUCache) deleteElement(elem *list.Element) {
 	}
 
 	delete(c.cache, entry.Key())
+
 	c.size--
 }
 
+// Clear clears/resets the cache.
 func (c *LFUCache) Clear() {
 	c.cache = make(map[string]*list.Element)
 	c.frequency = make(map[int]*list.List)
@@ -167,7 +165,7 @@ func (n *NilEviction) Get(key string) (any, bool) {
 
 func (n *NilEviction) Clear() {}
 
-// NewLFUCache returns a new LFUCache instance
+// NewEviction returns a new eviction implementation based on the options provided.
 func NewEviction(
 	opts EvictionOptions,
 ) (Eviction, error) {

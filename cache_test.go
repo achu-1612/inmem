@@ -101,7 +101,7 @@ func TestClear(t *testing.T) {
 		t.Errorf("expected finalizer not to be called")
 	}
 }
-func TestInTransaction(t *testing.T) {
+func Test_inTransaction(t *testing.T) {
 	c := &cache{
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
@@ -114,7 +114,7 @@ func TestInTransaction(t *testing.T) {
 	c.cond = sync.NewCond(c.mu)
 
 	// Test when no transaction is in progress
-	if c.InTransaction() {
+	if c.inTransaction() {
 		t.Errorf("expected no transaction in progress")
 	}
 
@@ -125,7 +125,7 @@ func TestInTransaction(t *testing.T) {
 	}
 
 	// Test when a transaction is in progress
-	if !c.InTransaction() {
+	if !c.inTransaction() {
 		t.Errorf("expected transaction to be in progress")
 	}
 
@@ -136,7 +136,7 @@ func TestInTransaction(t *testing.T) {
 	}
 
 	// Test when no transaction is in progress after commit
-	if c.InTransaction() {
+	if c.inTransaction() {
 		t.Errorf("expected no transaction in progress after commit")
 	}
 
@@ -147,7 +147,7 @@ func TestInTransaction(t *testing.T) {
 	}
 
 	// Test when a transaction is in progress
-	if !c.InTransaction() {
+	if !c.inTransaction() {
 		t.Errorf("expected transaction to be in progress")
 	}
 
@@ -158,7 +158,7 @@ func TestInTransaction(t *testing.T) {
 	}
 
 	// Test when no transaction is in progress after rollback
-	if c.InTransaction() {
+	if c.inTransaction() {
 		t.Errorf("expected no transaction in progress after rollback")
 	}
 }
@@ -407,7 +407,7 @@ func TestBegin(t *testing.T) {
 				t.Errorf("expected no error, got %v", err)
 			}
 
-			if !tt.expectError && !c.InTransaction() {
+			if !tt.expectError && !c.inTransaction() {
 				t.Errorf("expected transaction to be in progress")
 			}
 		})

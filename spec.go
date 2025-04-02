@@ -66,9 +66,18 @@ type ShardIndexResolver interface {
 // LFUResource is an interface that represents a resource in the LFUCache
 // It allows the cache pluggable to any type of resource/value
 type LFUResource interface {
+	// Key returns key for the eviction entry.
 	Key() string
+
+	// IncrementFrequency increments the key access frequency by 1.
 	IncrementFrequency()
+
+	// Frequency returns the frequency for the entry.
 	Frequency() int
+
+	// Value return the value for the entry.
 	Value() any
+
+	// Set sets the value for the entry.
 	Set(any)
 }
