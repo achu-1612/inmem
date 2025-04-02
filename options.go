@@ -47,6 +47,7 @@ type Options struct {
 	MaxSize int
 }
 
+// EvictionOptions represents the options for the eviction initialization.
 type EvictionOptions struct {
 	// Finalizer is the finalizer function that is called when an item is evicted from the cache.
 	Finalizer func(string, any)

@@ -198,6 +198,18 @@ func (m *MockEviction) EXPECT() *MockEvictionMockRecorder {
 	return m.recorder
 }
 
+// Clear mocks base method.
+func (m *MockEviction) Clear() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Clear")
+}
+
+// Clear indicates an expected call of Clear.
+func (mr *MockEvictionMockRecorder) Clear() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockEviction)(nil).Clear))
+}
+
 // Delete mocks base method.
 func (m *MockEviction) Delete(key string) {
 	m.ctrl.T.Helper()

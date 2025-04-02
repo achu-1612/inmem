@@ -41,4 +41,4 @@ jobs:
         with:
           working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
           version: v1.60
-          args: --timeout 180s --new
+          args: --timeout 180s

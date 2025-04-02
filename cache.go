@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// defaultSyncInterval is the default interval for disk sync of the cache data.
 	defaultSyncInterval = 5 * time.Minute
 )
 
@@ -24,7 +25,10 @@ var _ Cache = (*cache)(nil)
 
 // Item represents a cache item.
 type Item struct {
-	Object     any
+	// Object is the actual data to be stored in the cache.
+	Object any
+
+	// Expiration is the unix time when the entry will get expired/evicted from the cache.
 	Expiration int64
 }
 
@@ -62,30 +66,37 @@ type cache struct {
 
 	storeIndex int
 
-	l logger
+	l logger // logger specific to cache instance.
 
-	e Eviction
+	e Eviction // Eviction policy implemetation
 }
 
+// cacheEvictionEntry is the entry which implements the LFUResource
+// TODO: will name it better once I start implementing LRU.
 type cacheEvictionEntry struct {
-	key       string
-	frequency int
+	key       string // cache entry key
+	frequency int    // cache key access frequency
 }
 
+// Value return the value for the entry.
 func (e *cacheEvictionEntry) Value() any {
 	return nil
 }
 
+// Set sets the value for the entry.
 func (e *cacheEvictionEntry) Set(value any) {}
 
+// Frequency returns the frequency for the entry.
 func (e *cacheEvictionEntry) Frequency() int {
 	return e.frequency
 }
 
+// IncrementFrequency increments the key access frequency by 1.
 func (e *cacheEvictionEntry) IncrementFrequency() {
 	e.frequency++
 }
 
+// Key returns key for the eviction entry.
 func (e *cacheEvictionEntry) Key() string {
 	return e.key
 }
