@@ -178,7 +178,15 @@ func NewEviction(
 	}
 
 	if opts.Allocator == nil {
-		return nil, ErrInvalidAllocatorForEviction
+		// use a default allocator if none is provided
+		opts.Allocator = func(key string) LFUResource {
+			return &defaultEvictionEntry{key: key}
+		}
+	}
+
+	if opts.Finalizer == nil {
+		// use a no-op finalizer if none is provided
+		opts.Finalizer = func(string, any) {}
 	}
 
 	return &LFUCache{
@@ -188,4 +196,35 @@ func NewEviction(
 		resourceAllocator: opts.Allocator,
 		finalizer:         opts.Finalizer,
 	}, nil
+}
+
+// make sure defaultEvictionEntry implements the LFUResource interface
+var _ LFUResource = (*defaultEvictionEntry)(nil)
+
+// defaultEvictionEntry implements the LFUResource interface,
+// so that it can be used with the LFUCache.
+type defaultEvictionEntry struct {
+	key       string
+	value     any
+	frequency int
+}
+
+func (e *defaultEvictionEntry) Value() any {
+	return e.value
+}
+
+func (e *defaultEvictionEntry) Set(value any) {
+	e.value = value
+}
+
+func (e *defaultEvictionEntry) Frequency() int {
+	return e.frequency
+}
+
+func (e *defaultEvictionEntry) IncrementFrequency() {
+	e.frequency++
+}
+
+func (e *defaultEvictionEntry) Key() string {
+	return e.key
 }
