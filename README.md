@@ -8,7 +8,7 @@
 - **Sharding**: Distribute cache items across multiple shards for improved performance.
 - **Transactions**: Support for atomic and optimistic transactions.
 - **Persistence**: Periodically save cache data to disk and load it on startup.
-- **Eviction**: TTL based, LFU eviction policy for the keys.
+- **Eviction**: TTL based, LFU, LRU eviction policy for the keys.
 
 ## Installation
 
@@ -61,8 +61,6 @@ func main() {
     cache, err := inmem.New(context.Background(), inmem.Options{
         Sharding:   true,
         ShardCount: 4,
-        ShardIndexCacheSize: 100,
-        ShardIndexCache: true, // optional. Enable shard index caching to avoid hash caclulation for the keys
     })
     if err != nil {
         panic(err)
@@ -148,11 +146,12 @@ package main
 import (
     "context"
     "github.com/achu-1612/inmem"
+    "github.com/achu-1612/inmem/eviction"
 )
 
 func main() {
     cache, err := inmem.New(context.Background(), inmem.Options{
-        EvictionPolicy: EvictionPolicyLFU,
+        EvictionPolicy: eviction.PolicyLRU,,
         MaxSize: 2,
     })
     if err != nil {
@@ -166,7 +165,7 @@ func main() {
 }
 ```
 
-### Just the LFU cache
+### Just the LFU/LRU cache
 
 ```go
 
@@ -174,15 +173,15 @@ package main
 
 import (
     "context"
-    "github.com/achu-1612/inmem"
+    "github.com/achu-1612/inmem/eviction"
 )
 
 func main() {
-    cache, err := inmem.NewEviction(inmem.EvictionOptions{
-        Policy: EvictionPolicyLFU,
-        MaxSize: 2,
-        Allocator: nil, // optional
-        Finalizer: nil, // optional
+    cache, err := eviction.New(eviction.Options{
+        Policy: eviction.PolicyLFU, // eviction.PolicyLRU can be used to LRU cache
+        Capacity: 2,
+        DeleteFinalizer: nil, // optional
+        EvictFinalizer: nil,
     })
     if err != nil {
         panic(err)
@@ -195,7 +194,6 @@ func main() {
 }
 // Implment LFUResource, an entry for the LFU cache.
 // If not default eviction entry will be use to deal with the cache data.
-
 
 ```
 
