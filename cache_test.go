@@ -916,25 +916,52 @@ func TestSet(t *testing.T) {
 }
 
 func TestCacheWithEviction(t *testing.T) {
-	c, err := NewCache(context.Background(), Options{
-		EvictionPolicy: eviction.PolicyLFU,
-		MaxSize:        10,
-	}, 0)
+	t.Run("lfu", func(t *testing.T) {
+		c, err := NewCache(context.Background(), Options{
+			EvictionPolicy: eviction.PolicyLFU,
+			MaxSize:        10,
+		}, 0)
 
-	if err != nil {
-		t.Fatalf("unexpected error creating cache: %v", err)
-	}
+		if err != nil {
+			t.Fatalf("unexpected error creating cache: %v", err)
+		}
 
-	// Add 10 items to the cache
-	for i := 0; i < 10; i++ {
-		c.Set(fmt.Sprintf("%d", i), i, 0)
-	}
+		// Add 10 items to the cache
+		for i := 0; i < 10; i++ {
+			c.Set(fmt.Sprintf("%d", i), i, 0)
+		}
 
-	// Add another item to the cache
-	c.Set(fmt.Sprintf("%d", 10), 10, 0)
+		// Add another item to the cache
+		c.Set(fmt.Sprintf("%d", 10), 10, 0)
 
-	// Check if the first item has been evicted
-	if _, ok := c.Get("0"); ok {
-		t.Errorf("expected item to be evicted")
-	}
+		// Check if the first item has been evicted
+		if _, ok := c.Get("0"); ok {
+			t.Errorf("expected item to be evicted")
+		}
+	})
+
+	t.Run("lfu", func(t *testing.T) {
+		c, err := NewCache(context.Background(), Options{
+			EvictionPolicy: eviction.PolicyLRU,
+			MaxSize:        10,
+		}, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error creating cache: %v", err)
+		}
+
+		// Add 10 items to the cache
+		for i := 0; i < 10; i++ {
+			c.Set(fmt.Sprintf("%d", i), i, 0)
+		}
+
+		// Add another item to the cache
+		c.Set(fmt.Sprintf("%d", 10), 10, 0)
+
+		// Check if the first item has been evicted
+		if _, ok := c.Get("0"); ok {
+			t.Errorf("expected item to be evicted")
+		}
+	})
+
 }

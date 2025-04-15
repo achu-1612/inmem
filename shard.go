@@ -44,7 +44,7 @@ func NewShardedCache(ctx context.Context, opt Options) (Cache, error) {
 
 // getShard returns the shard for a given key.
 func (sc *shardedCache) getShard(key string) Cache {
-	return sc.shards[GetShardIndex(sc.numShards, key)]
+	return sc.shards[getShardIndex(sc.numShards, key)]
 }
 
 // Size returns the total number of items in the cache.
@@ -133,7 +133,7 @@ func (sc *shardedCache) Rollback() error {
 	return nil
 }
 
-func GetShardIndex(numShards uint32, key string) uint32 {
+func getShardIndex(numShards uint32, key string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 
