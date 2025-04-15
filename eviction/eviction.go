@@ -27,10 +27,19 @@ type Eviction interface {
 
 // Options holds the configuration for the eviction cache.
 type Options struct {
-	Capacity        int
-	Policy          Policy
+	// Capacity is the maximum number of items that can be stored in the eviction cache.
+	// After this capacity is reached, the cache will start evicting items based on the eviction policy.
+	// Default value is 100.
+	Capacity int
+
+	// Policy is the eviction policy to be used.
+	Policy Policy
+
+	// DeleteFinalizer is the finalizer function that is called when an item is deleted from the cache.
 	DeleteFinalizer func(key string, value any)
-	EvictFinalizer  func(key string, value any)
+
+	// EvictFinalizer is the finalizer function that is called when an item is evicted from the cache.
+	EvictFinalizer func(key string, value any)
 }
 
 // New creates a new Eviction instance based on the provided options.
