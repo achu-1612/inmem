@@ -30,12 +30,6 @@ type Options struct {
 	Sharding bool
 	// ShardCount is the number of shards to be created.
 	ShardCount uint32
-	// ShardIndexCache enables the cache to store the shard index for a given key.
-	// Note: It will save calling the hash function for the same key multiple times.
-	ShardIndexCache bool
-	// ShardIndexCacheSize is the size of the shard index cache.
-	// Note: keys will be flushed from the key index cache, once the size exceeds the defined value.
-	ShardIndexCacheSize int
 
 	// SupressLog suppresses the logs.
 	SupressLog bool

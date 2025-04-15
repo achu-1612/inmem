@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/achu-1612/inmem/eviction"
+	"github.com/achu-1612/inmem/log"
 )
 
 const (
@@ -67,7 +68,7 @@ type cache struct {
 
 	storeIndex int
 
-	l logger // logger specific to cache instance.
+	l log.Logger // logger specific to cache instance.
 
 	e eviction.Eviction // Eviction policy implemetation
 }
@@ -86,15 +87,20 @@ func NewCache(ctx context.Context, opt Options, index int) (Cache, error) {
 		syncFolderPath: opt.SyncFolderPath,
 		syncInterval:   opt.SyncInterval,
 		storeIndex:     index,
-		l:              newLogger("store-"+fmt.Sprint(index), opt.SupressLog, opt.DebugLogs),
+		l:              log.New("store-"+fmt.Sprint(index), opt.SupressLog, opt.DebugLogs),
 	}
 
+	// we want key eviction happening at the eviction policy level to reflect in the cache store.
+	// That is why the eviction finalizer is set to delete the item from the cache store.
+	// The delete finalizer is set to do nothing as,
+	// we internally delete on the eviction will be called when the item is deleted from the cache store.
 	c.e = eviction.New(eviction.Options{
 		Policy:   opt.EvictionPolicy,
 		Capacity: opt.MaxSize,
-		Finalizer: func(s string, a any) {
+		EvictFinalizer: func(s string, a any) {
 			c.deleteItem(s)
 		},
+		DeleteFinalizer: func(s string, a any) {},
 	})
 
 	if c.finalizer == nil {

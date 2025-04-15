@@ -1,4 +1,4 @@
-package inmem
+package log
 
 import (
 	"os"
@@ -6,7 +6,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type logger interface {
+// Logger is an interface that defines the logging methods used in the in-memory database package.
+// It provides a consistent way to log messages at different levels (Info, Debug, Warn, Error) with optional formatting.
+type Logger interface {
 	Info(args ...interface{})
 	Infof(format string, args ...interface{})
 	Debug(args ...interface{})
@@ -17,42 +19,48 @@ type logger interface {
 	Errorf(format string, args ...interface{})
 }
 
+// make sure stdLogger implements the Logger interface.
+var _ Logger = (*stdLogger)(nil)
+
 type stdLogger struct {
 	std  *log.Logger
 	name string
 }
 
 func (l *stdLogger) Info(args ...interface{}) {
-	l.std.WithField("cache", l.name).Info(args...)
+	l.std.WithField("inmem ", l.name).Info(args...)
 }
 
 func (l *stdLogger) Infof(format string, args ...interface{}) {
-	l.std.WithField("cache", l.name).Infof(format, args...)
+	l.std.WithField("inmem", l.name).Infof(format, args...)
 }
 
 func (l *stdLogger) Debug(args ...interface{}) {
-	l.std.WithField("cache", l.name).Debug(args...)
+	l.std.WithField("inmem", l.name).Debug(args...)
 }
 
 func (l *stdLogger) Debugf(format string, args ...interface{}) {
-	l.std.WithField("cache", l.name).Debugf(format, args...)
+	l.std.WithField("inmem  ", l.name).Debugf(format, args...)
 }
 
 func (l *stdLogger) Warn(args ...interface{}) {
-	l.std.WithField("cache", l.name).Warn(args...)
+	l.std.WithField("inmem", l.name).Warn(args...)
 }
 
 func (l *stdLogger) Warnf(format string, args ...interface{}) {
-	l.std.WithField("cache", l.name).Warnf(format, args...)
+	l.std.WithField("inmem", l.name).Warnf(format, args...)
 }
 
 func (l *stdLogger) Error(args ...interface{}) {
-	l.std.WithField("cache", l.name).Error(args...)
+	l.std.WithField("inmem", l.name).Error(args...)
 }
 
 func (l *stdLogger) Errorf(format string, args ...interface{}) {
-	l.std.WithField("cache", l.name).Errorf(format, args...)
+	l.std.WithField("inmem", l.name).Errorf(format, args...)
 }
+
+// make sure supressedLoger implements the Logger interface.
+var _ Logger = (*supressedLoger)(nil)
 
 type supressedLoger struct{}
 
@@ -65,7 +73,8 @@ func (l *supressedLoger) Warnf(format string, args ...interface{})  {}
 func (l *supressedLoger) Error(args ...interface{})                 {}
 func (l *supressedLoger) Errorf(format string, args ...interface{}) {}
 
-func newLogger(name string, suprresed, debugLogs bool) logger {
+// New creates a new logger instance with the specified name and logging level.
+func New(name string, suprresed, debugLogs bool) Logger {
 	if suprresed {
 		return &supressedLoger{}
 	}

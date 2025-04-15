@@ -1,103 +1,219 @@
 package eviction
 
-import (
-	"testing"
-)
+import "testing"
 
-func TestLRUCache_Put(t *testing.T) {
-	t.Run("Add items within capacity", func(t *testing.T) {
-		cache := newLRU(3, nil)
+func TestLRUCache_Get(t *testing.T) {
+	deleteFinalizer := func(key string, value any) {}
+	evictFinalizer := func(key string, value any) {}
+
+	t.Run("Get existing key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
+
+		value, found := cache.Get("key1")
+		if !found {
+			t.Errorf("expected key1 to be found")
+		}
+		if value != "value1" {
+			t.Errorf("expected value1, got %v", value)
+		}
+	})
+
+	t.Run("Get non-existing key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+
+		_, found := cache.Get("key2")
+		if found {
+			t.Errorf("expected key2 to not be found")
+		}
+	})
+
+	t.Run("Get updates LRU order", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+		cache.Put("key2", "value2")
+
+		// Access key1 to make it most recently used
+		cache.Get("key1")
+
+		// Add another key to trigger eviction
 		cache.Put("key3", "value3")
 
-		if val, found := cache.Get("key1"); !found || val != "value1" {
-			t.Errorf("Expected key1 to have value 'value1', got %v", val)
+		_, found := cache.Get("key2")
+		if found {
+			t.Errorf("expected key2 to be evicted")
 		}
-		if val, found := cache.Get("key2"); !found || val != "value2" {
-			t.Errorf("Expected key2 to have value 'value2', got %v", val)
+
+		_, found = cache.Get("key1")
+		if !found {
+			t.Errorf("expected key1 to still be in the cache")
 		}
-		if val, found := cache.Get("key3"); !found || val != "value3" {
-			t.Errorf("Expected key3 to have value 'value3', got %v", val)
+	})
+}
+func TestLRUCache_Put(t *testing.T) {
+	deleteFinalizer := func(key string, value any) {}
+	evictFinalizer := func(key string, value any) {}
+
+	t.Run("Put new key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+
+		value, found := cache.Get("key1")
+		if !found {
+			t.Errorf("expected key1 to be found")
+		}
+		if value != "value1" {
+			t.Errorf("expected value1, got %v", value)
 		}
 	})
 
-	t.Run("Evict least recently used item", func(t *testing.T) {
-		cache := newLRU(2, nil)
+	t.Run("Put existing key updates value", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+		cache.Put("key1", "value2")
+
+		value, found := cache.Get("key1")
+		if !found {
+			t.Errorf("expected key1 to be found")
+		}
+		if value != "value2" {
+			t.Errorf("expected value2, got %v", value)
+		}
+	})
+
+	t.Run("Put evicts least recently used key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
-		cache.Put("key3", "value3") // This should evict "key1"
 
-		if _, found := cache.Get("key1"); found {
-			t.Error("Expected key1 to be evicted, but it was found")
+		// Add another key to trigger eviction
+		cache.Put("key3", "value3")
+
+		_, found := cache.Get("key1")
+		if found {
+			t.Errorf("expected key1 to be evicted")
 		}
-		if val, found := cache.Get("key2"); !found || val != "value2" {
-			t.Errorf("Expected key2 to have value 'value2', got %v", val)
+
+		value, found := cache.Get("key2")
+		if !found {
+			t.Errorf("expected key2 to still be in the cache")
 		}
-		if val, found := cache.Get("key3"); !found || val != "value3" {
-			t.Errorf("Expected key3 to have value 'value3', got %v", val)
+		if value != "value2" {
+			t.Errorf("expected value2, got %v", value)
+		}
+
+		value, found = cache.Get("key3")
+		if !found {
+			t.Errorf("expected key3 to still be in the cache")
+		}
+		if value != "value3" {
+			t.Errorf("expected value3, got %v", value)
 		}
 	})
+}
 
-	t.Run("Update existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
-		cache.Put("key1", "value1")
-		cache.Put("key1", "valueUpdated")
+func TestLRUCache_Delete(t *testing.T) {
+	deleteFinalizer := func(key string, value any) {}
+	evictFinalizer := func(key string, value any) {}
 
-		if val, found := cache.Get("key1"); !found || val != "valueUpdated" {
-			t.Errorf("Expected key1 to have updated value 'valueUpdated', got %v", val)
-		}
-	})
-
-	t.Run("Evict after accessing an item", func(t *testing.T) {
-		cache := newLRU(2, nil)
-		cache.Put("key1", "value1")
-		cache.Put("key2", "value2")
-		cache.Get("key1")           // Access key1 to make it recently used
-		cache.Put("key3", "value3") // This should evict "key2"
-
-		if _, found := cache.Get("key2"); found {
-			t.Error("Expected key2 to be evicted, but it was found")
-		}
-		if val, found := cache.Get("key1"); !found || val != "value1" {
-			t.Errorf("Expected key1 to have value 'value1', got %v", val)
-		}
-		if val, found := cache.Get("key3"); !found || val != "value3" {
-			t.Errorf("Expected key3 to have value 'value3', got %v", val)
-		}
-	})
-
-	t.Run("Add items to full capacity and clear", func(t *testing.T) {
-		cache := newLRU(2, nil)
+	t.Run("Delete existing key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
-		cache.Clear()
 
-		if _, found := cache.Get("key1"); found {
-			t.Error("Expected key1 to be cleared, but it was found")
-		}
-		if _, found := cache.Get("key2"); found {
-			t.Error("Expected key2 to be cleared, but it was found")
-		}
-	})
-
-	t.Run("Delete an existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
-		cache.Put("key1", "value1")
 		cache.Delete("key1")
 
-		if _, found := cache.Get("key1"); found {
-			t.Error("Expected key1 to be deleted, but it was found")
+		_, found := cache.Get("key1")
+		if found {
+			t.Errorf("expected key1 to be deleted")
+		}
+
+		value, found := cache.Get("key2")
+		if !found {
+			t.Errorf("expected key2 to still be in the cache")
+		}
+		if value != "value2" {
+			t.Errorf("expected value2, got %v", value)
 		}
 	})
 
-	t.Run("Delete a non-existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
+	t.Run("Delete non-existing key", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
 		cache.Put("key1", "value1")
-		cache.Delete("key2") // Deleting a non-existing key should not cause issues
 
-		if val, found := cache.Get("key1"); !found || val != "value1" {
-			t.Errorf("Expected key1 to have value 'value1', got %v", val)
+		cache.Delete("key2") // Attempt to delete a non-existing key
+
+		value, found := cache.Get("key1")
+		if !found {
+			t.Errorf("expected key1 to still be in the cache")
+		}
+		if value != "value1" {
+			t.Errorf("expected value1, got %v", value)
+		}
+	})
+
+	t.Run("Delete updates LRU order", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+		cache.Put("key2", "value2")
+
+		// Delete key1
+		cache.Delete("key1")
+
+		// Add another key to ensure no eviction of key2
+		cache.Put("key3", "value3")
+
+		value, found := cache.Get("key2")
+		if !found {
+			t.Errorf("expected key2 to still be in the cache")
+		}
+		if value != "value2" {
+			t.Errorf("expected value2, got %v", value)
+		}
+
+		value, found = cache.Get("key3")
+		if !found {
+			t.Errorf("expected key3 to still be in the cache")
+		}
+		if value != "value3" {
+			t.Errorf("expected value3, got %v", value)
+		}
+	})
+}
+
+func TestLRUCache_Clear(t *testing.T) {
+	deleteFinalizer := func(key string, value any) {}
+	evictFinalizer := func(key string, value any) {}
+
+	t.Run("Clear cache", func(t *testing.T) {
+		cache := newLRU(2, deleteFinalizer, evictFinalizer)
+		cache.Put("key1", "value1")
+		cache.Put("key2", "value2")
+
+		// Clear the cache
+		cache.Clear()
+
+		// Ensure the cache is empty
+		_, found := cache.Get("key1")
+		if found {
+			t.Errorf("expected key1 to be cleared from the cache")
+		}
+
+		_, found = cache.Get("key2")
+		if found {
+			t.Errorf("expected key2 to be cleared from the cache")
+		}
+
+		// Ensure the internal list is empty
+		if cache.list.Len() != 0 {
+			t.Errorf("expected internal list to be empty, got length %d", cache.list.Len())
+		}
+
+		// Ensure the internal map is empty
+		if len(cache.cache) != 0 {
+			t.Errorf("expected internal map to be empty, got length %d", len(cache.cache))
 		}
 	})
 }

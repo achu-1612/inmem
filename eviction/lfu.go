@@ -58,20 +58,22 @@ var _ Eviction = (*lfuCache)(nil)
 // lfuCache is a cache that evicts the least frequently used item
 // It implements the Eviction interface.
 type lfuCache struct {
-	maxSize   int
-	size      int
-	cache     map[string]*list.Element
-	frequency map[int]*list.List
-	minFreq   int
-	finalizer func(string, any)
+	maxSize         int
+	size            int
+	cache           map[string]*list.Element
+	frequency       map[int]*list.List
+	minFreq         int
+	deleteFinalizer func(string, any)
+	evcitFinalizer  func(string, any)
 }
 
-func newLFU(maxSize int, finalizer func(string, any)) *lfuCache {
+func newLFU(maxSize int, deleteFinalizer, evcitFinalizer func(string, any)) *lfuCache {
 	return &lfuCache{
-		maxSize:   maxSize,
-		cache:     make(map[string]*list.Element),
-		frequency: make(map[int]*list.List),
-		finalizer: finalizer,
+		maxSize:         maxSize,
+		cache:           make(map[string]*list.Element),
+		frequency:       make(map[int]*list.List),
+		deleteFinalizer: deleteFinalizer,
+		evcitFinalizer:  evcitFinalizer,
 	}
 }
 
@@ -159,7 +161,7 @@ func (c *lfuCache) evict() {
 		entry := elem.Value.(LFUResource)
 
 		delete(c.cache, entry.Key())
-		c.finalizer(entry.Key(), entry.Value())
+		c.evcitFinalizer(entry.Key(), entry.Value())
 
 		c.size--
 
@@ -190,6 +192,7 @@ func (c *lfuCache) Delete(key string) {
 	}
 
 	delete(c.cache, entry.Key())
+	c.deleteFinalizer(entry.Key(), entry.Value())
 
 	c.size--
 }

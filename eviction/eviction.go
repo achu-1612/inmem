@@ -27,15 +27,29 @@ type Eviction interface {
 
 // Options holds the configuration for the eviction cache.
 type Options struct {
-	Capacity  int
-	Policy    Policy
-	Finalizer func(key string, value any)
+	// Capacity is the maximum number of items that can be stored in the eviction cache.
+	// After this capacity is reached, the cache will start evicting items based on the eviction policy.
+	// Default value is 100.
+	Capacity int
+
+	// Policy is the eviction policy to be used.
+	Policy Policy
+
+	// DeleteFinalizer is the finalizer function that is called when an item is deleted from the cache.
+	DeleteFinalizer func(key string, value any)
+
+	// EvictFinalizer is the finalizer function that is called when an item is evicted from the cache.
+	EvictFinalizer func(key string, value any)
 }
 
 // New creates a new Eviction instance based on the provided options.
 func New(opt Options) Eviction {
-	if opt.Finalizer == nil {
-		opt.Finalizer = func(key string, value any) {}
+	if opt.DeleteFinalizer == nil {
+		opt.DeleteFinalizer = func(key string, value any) {}
+	}
+
+	if opt.EvictFinalizer == nil {
+		opt.EvictFinalizer = func(key string, value any) {}
 	}
 
 	if opt.Capacity <= 0 {
@@ -44,10 +58,10 @@ func New(opt Options) Eviction {
 
 	switch opt.Policy {
 	case PolicyLFU:
-		return newLFU(opt.Capacity, opt.Finalizer)
+		return newLFU(opt.Capacity, opt.DeleteFinalizer, opt.EvictFinalizer)
 
 	case PolicyLRU:
-		return newLRU(opt.Capacity, opt.Finalizer)
+		return newLRU(opt.Capacity, opt.DeleteFinalizer, opt.EvictFinalizer)
 
 	case PolicyFIFO:
 		panic("FIFO eviction policy is not implemented yet")
