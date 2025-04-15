@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/achu-1612/inmem/eviction"
+	"github.com/achu-1612/inmem/log"
 )
 
 func TestGarbageCollector(t *testing.T) {
@@ -22,7 +23,7 @@ func TestGarbageCollector(t *testing.T) {
 		finalizer: finalizer,
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		ttl:       eviction.NewTTL(),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -70,7 +71,7 @@ func TestClear(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -108,7 +109,7 @@ func Test_inTransaction(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -183,7 +184,7 @@ func TestGetStageID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &cache{
 				txType: tt.txType,
-				l:      newLogger("", true, false),
+				l:      log.New("", true, false),
 			}
 
 			stageID := c.getStageID()
@@ -212,7 +213,7 @@ func TestSetItem(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 
@@ -289,7 +290,7 @@ func TestDeleteItem(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -392,7 +393,7 @@ func TestBegin(t *testing.T) {
 				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
-				l:         newLogger("", true, false),
+				l:         log.New("", true, false),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -470,7 +471,7 @@ func TestCommit(t *testing.T) {
 				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
-				l:         newLogger("", true, false),
+				l:         log.New("", true, false),
 				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)
@@ -563,7 +564,7 @@ func TestRollback(t *testing.T) {
 				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
-				l:         newLogger("", true, false),
+				l:         log.New("", true, false),
 				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)
@@ -612,7 +613,7 @@ func TestDelete_WithoutTx(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -679,7 +680,7 @@ func TestDelete_WithTx(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -728,7 +729,7 @@ func TestGet(t *testing.T) {
 		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
-		l:         newLogger("", true, false),
+		l:         log.New("", true, false),
 		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
@@ -888,7 +889,7 @@ func TestSet(t *testing.T) {
 				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
-				l:         newLogger("", true, false),
+				l:         log.New("", true, false),
 				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)

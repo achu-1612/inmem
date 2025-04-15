@@ -9,19 +9,21 @@ var _ Eviction = (*lruCache)(nil)
 
 // lruCache represents a Least Recently Used cache.
 type lruCache struct {
-	capacity  int
-	cache     map[string]*list.Element
-	list      *list.List
-	finalizer func(string, any)
+	capacity        int
+	cache           map[string]*list.Element
+	list            *list.List
+	deleteFinalizer func(string, any)
+	evcitFinalizer  func(string, any)
 }
 
 // NewLRUCache creates a new LRUCache with the specified capacity.
-func newLRU(capacity int, finalizer func(string, any)) *lruCache {
+func newLRU(capacity int, deleteFinalizer, evcitFinalizer func(string, any)) *lruCache {
 	return &lruCache{
-		capacity:  capacity,
-		cache:     make(map[string]*list.Element),
-		list:      list.New(),
-		finalizer: finalizer,
+		capacity:        capacity,
+		cache:           make(map[string]*list.Element),
+		list:            list.New(),
+		deleteFinalizer: deleteFinalizer,
+		evcitFinalizer:  evcitFinalizer,
 	}
 }
 
@@ -64,8 +66,8 @@ func (lru *lruCache) Put(key string, value any) {
 func (lru *lruCache) Delete(key string) {
 	if elem, found := lru.cache[key]; found {
 		lru.list.Remove(elem)
-
 		delete(lru.cache, key)
+		lru.deleteFinalizer(key, elem.Value.(*lruItem).value)
 	}
 }
 
@@ -75,6 +77,7 @@ func (lru *lruCache) evict() {
 	if back != nil {
 		entry := back.Value.(*lruItem)
 		delete(lru.cache, entry.key)
+		lru.evcitFinalizer(entry.key, entry.value)
 		lru.list.Remove(back)
 	}
 }

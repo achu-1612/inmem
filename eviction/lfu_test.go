@@ -64,10 +64,11 @@ func TestLFUCache_Put(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cache := &lfuCache{
-				maxSize:   tt.maxSize,
-				cache:     make(map[string]*list.Element),
-				frequency: make(map[int]*list.List),
-				finalizer: func(key string, value any) {},
+				maxSize:         tt.maxSize,
+				cache:           make(map[string]*list.Element),
+				frequency:       make(map[int]*list.List),
+				deleteFinalizer: func(key string, value any) {},
+				evcitFinalizer:  func(key string, value any) {},
 			}
 
 			for _, action := range tt.actions {

@@ -9,13 +9,6 @@ const (
 	TransactionTypeOptimistic TransactionType = "optimistic"
 )
 
-type EvictionPolicy string
-
-const (
-	EvictionPolicyNil EvictionPolicy = "nil"
-	EvictionPolicyLFU EvictionPolicy = "lfu"
-)
-
 // Cache is the interface that defines the methods for a cache store.
 type Cache interface {
 	// Size returns the number of items in the cache.
@@ -47,40 +40,4 @@ type Cache interface {
 
 	// Rollback rolls back a transaction.
 	Rollback() error
-}
-
-// Eviction is the interface that defines the methods for an eviction policy.
-type Eviction interface {
-	// Put adds a key-value pair to the eviction cache.
-	Put(key string, value any)
-	// Get retrieves a value from the eviction cache given a key.
-	Get(key string) (any, bool)
-	// Delete removes a key from the eviction cache.
-	Delete(key string)
-	// Clear clears the eviction acache
-	Clear()
-}
-
-type ShardIndexResolver interface {
-	// GetShardIndex returns the shard index for a given key.
-	GetShardIndex(key string) uint32
-}
-
-// LFUResource is an interface that represents a resource in the LFUCache
-// It allows the cache pluggable to any type of resource/value
-type LFUResource interface {
-	// Key returns key for the eviction entry.
-	Key() string
-
-	// IncrementFrequency increments the key access frequency by 1.
-	IncrementFrequency()
-
-	// Frequency returns the frequency for the entry.
-	Frequency() int
-
-	// Value return the value for the entry.
-	Value() any
-
-	// Set sets the value for the entry.
-	Set(any)
 }

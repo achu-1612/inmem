@@ -6,7 +6,7 @@ import (
 
 func TestLRUCache_Put(t *testing.T) {
 	t.Run("Add items within capacity", func(t *testing.T) {
-		cache := newLRU(3, nil)
+		cache := newLRU(3, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
 		cache.Put("key3", "value3")
@@ -23,7 +23,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Evict least recently used item", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
 		cache.Put("key3", "value3") // This should evict "key1"
@@ -40,7 +40,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Update existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Put("key1", "valueUpdated")
 
@@ -50,7 +50,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Evict after accessing an item", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
 		cache.Get("key1")           // Access key1 to make it recently used
@@ -68,7 +68,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Add items to full capacity and clear", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Put("key2", "value2")
 		cache.Clear()
@@ -82,7 +82,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Delete an existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Delete("key1")
 
@@ -92,7 +92,7 @@ func TestLRUCache_Put(t *testing.T) {
 	})
 
 	t.Run("Delete a non-existing key", func(t *testing.T) {
-		cache := newLRU(2, nil)
+		cache := newLRU(2, func(s string, a any) {}, func(s string, a any) {})
 		cache.Put("key1", "value1")
 		cache.Delete("key2") // Deleting a non-existing key should not cause issues
 
