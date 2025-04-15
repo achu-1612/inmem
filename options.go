@@ -2,6 +2,8 @@ package inmem
 
 import (
 	"time"
+
+	"github.com/achu-1612/inmem/eviction"
 )
 
 // Options represents the options for the cache store initialization.
@@ -41,23 +43,8 @@ type Options struct {
 	DebugLogs bool
 
 	// EvictionPolicy is the eviction policy to be used.
-	EvictionPolicy EvictionPolicy
+	EvictionPolicy eviction.Policy
 
 	// MaxSize is the maximum size of the cache, after this size is reached, the cache will start evicting items.
 	MaxSize int
-}
-
-// EvictionOptions represents the options for the eviction initialization.
-type EvictionOptions struct {
-	// Finalizer is the finalizer function that is called when an item is evicted from the cache.
-	Finalizer func(string, any)
-
-	// Policy is the eviction policy to be used.
-	Policy EvictionPolicy
-
-	// MaxSize is the maximum size of the cache, after this size is reached, the cache will start evicting items.
-	MaxSize int
-
-	// ResourceAllocator is a function that returns a new LFUResource
-	Allocator func(string) LFUResource
 }

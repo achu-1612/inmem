@@ -1,9 +1,13 @@
-package inmem
+package eviction
 
-import "container/heap"
+import (
+	"container/heap"
+)
 
-// make sure PriorityQueue implements heap.Interface
-var _ heap.Interface = (*PriorityQueue)(nil)
+type TTLItem interface {
+	Key() string
+	Value() any
+}
 
 // pqItem is an item in the priority queue
 type pqItem struct {
@@ -12,8 +16,19 @@ type pqItem struct {
 	index     int
 }
 
+func (p *pqItem) Key() string {
+	return p.key
+}
+
+func (p *pqItem) Value() any {
+	return p.expiresAt
+}
+
 // PriorityQueue is a priority queue of pqItems
 type PriorityQueue []*pqItem
+
+// make sure PriorityQueue implements heap.Interface
+var _ heap.Interface = (*PriorityQueue)(nil)
 
 // Len returns the length of the priority queue
 func (pq PriorityQueue) Len() int {
@@ -62,4 +77,61 @@ func (pq *PriorityQueue) Remove(key string) {
 			break
 		}
 	}
+}
+
+type TTL interface {
+	Len() int
+	Top() TTLItem
+	Put(key string, value any)
+	Delete(key string)
+	Pop() string
+	Clear()
+}
+
+var _ TTL = (*ttl)(nil)
+
+type ttl struct {
+	pq PriorityQueue
+}
+
+func NewTTL() TTL {
+	return &ttl{
+		pq: make(PriorityQueue, 0),
+	}
+}
+
+func (t *ttl) Len() int {
+	return t.pq.Len()
+}
+
+func (t *ttl) Pop() string {
+	v := heap.Pop(&t.pq).(*pqItem)
+	if v == nil {
+		return ""
+	}
+
+	return v.key
+}
+
+func (t *ttl) Delete(key string) {
+	t.pq.Remove(key)
+}
+
+func (t *ttl) Clear() {
+	t.pq = make(PriorityQueue, 0)
+}
+
+func (t *ttl) Top() TTLItem {
+	if t.pq.Len() == 0 {
+		return nil
+	}
+
+	return (t.pq)[0]
+}
+
+func (t *ttl) Put(key string, value any) {
+	heap.Push(&t.pq, &pqItem{
+		key:       key,
+		expiresAt: value.(int64),
+	})
 }

@@ -1,36 +1,9 @@
-package inmem
+package eviction
 
 import (
+	"container/list"
 	"testing"
 )
-
-// shardIndexEntry implements the LFUResource interface,
-// so that it can be used with the LFUCache.
-type testLFUEntry struct {
-	key       string
-	shardIdx  int
-	frequency int
-}
-
-func (e *testLFUEntry) Value() any {
-	return e.shardIdx
-}
-
-func (e *testLFUEntry) Set(value any) {
-	e.shardIdx = value.(int)
-}
-
-func (e *testLFUEntry) Frequency() int {
-	return e.frequency
-}
-
-func (e *testLFUEntry) IncrementFrequency() {
-	e.frequency++
-}
-
-func (e *testLFUEntry) Key() string {
-	return e.key
-}
 
 func TestLFUCache_Put(t *testing.T) {
 	tests := []struct {
@@ -90,15 +63,11 @@ func TestLFUCache_Put(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache, err := NewEviction(EvictionOptions{
-				Policy:    EvictionPolicyLFU,
-				MaxSize:   tt.maxSize,
-				Allocator: func(s string) LFUResource { return &testLFUEntry{key: s} },
-				Finalizer: func(s string, a any) {},
-			})
-
-			if err != nil {
-				t.Errorf("expected no error, got %v", err)
+			cache := &lfuCache{
+				maxSize:   tt.maxSize,
+				cache:     make(map[string]*list.Element),
+				frequency: make(map[int]*list.List),
+				finalizer: func(key string, value any) {},
 			}
 
 			for _, action := range tt.actions {

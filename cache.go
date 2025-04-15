@@ -2,7 +2,6 @@ package inmem
 
 import (
 	"bytes"
-	"container/heap"
 	"context"
 	"encoding/gob"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/achu-1612/inmem/eviction"
 )
 
 const (
@@ -53,7 +54,7 @@ type cache struct {
 	mu        *sync.RWMutex
 	finalizer func(string, any)
 
-	pq    PriorityQueue
+	ttl   eviction.TTL
 	cond  *sync.Cond
 	timer *time.Timer
 
@@ -68,37 +69,7 @@ type cache struct {
 
 	l logger // logger specific to cache instance.
 
-	e Eviction // Eviction policy implemetation
-}
-
-// cacheEvictionEntry is the entry which implements the LFUResource
-// TODO: will name it better once I start implementing LRU.
-type cacheEvictionEntry struct {
-	key       string // cache entry key
-	frequency int    // cache key access frequency
-}
-
-// Value return the value for the entry.
-func (e *cacheEvictionEntry) Value() any {
-	return nil
-}
-
-// Set sets the value for the entry.
-func (e *cacheEvictionEntry) Set(value any) {}
-
-// Frequency returns the frequency for the entry.
-func (e *cacheEvictionEntry) Frequency() int {
-	return e.frequency
-}
-
-// IncrementFrequency increments the key access frequency by 1.
-func (e *cacheEvictionEntry) IncrementFrequency() {
-	e.frequency++
-}
-
-// Key returns key for the eviction entry.
-func (e *cacheEvictionEntry) Key() string {
-	return e.key
+	e eviction.Eviction // Eviction policy implemetation
 }
 
 // New returns a new Cache instance.
@@ -107,7 +78,7 @@ func NewCache(ctx context.Context, opt Options, index int) (Cache, error) {
 		items:          make(map[string]Item),
 		mu:             &sync.RWMutex{},
 		finalizer:      opt.Finalizer,
-		pq:             make(PriorityQueue, 0),
+		ttl:            eviction.NewTTL(),
 		timer:          time.NewTimer(time.Hour),
 		txType:         opt.TransactionType,
 		txStage:        make(map[uint64]*txStore),
@@ -118,20 +89,13 @@ func NewCache(ctx context.Context, opt Options, index int) (Cache, error) {
 		l:              newLogger("store-"+fmt.Sprint(index), opt.SupressLog, opt.DebugLogs),
 	}
 
-	evp, err := NewEviction(EvictionOptions{
-		Policy:    opt.EvictionPolicy,
-		MaxSize:   opt.MaxSize,
-		Allocator: func(s string) LFUResource { return &cacheEvictionEntry{key: s} },
+	c.e = eviction.New(eviction.Options{
+		Policy:   opt.EvictionPolicy,
+		Capacity: opt.MaxSize,
 		Finalizer: func(s string, a any) {
 			c.deleteItem(s)
 		},
 	})
-
-	if err != nil {
-		return nil, fmt.Errorf("setting up eviction : %v", err)
-	}
-
-	c.e = evp
 
 	if c.finalizer == nil {
 		c.l.Warn("no finalizer provided, using default finalizer")
@@ -212,7 +176,7 @@ func (c *cache) Clear() {
 	defer c.mu.Unlock()
 
 	c.items = make(map[string]Item)
-	c.pq = make(PriorityQueue, 0)
+	c.ttl.Clear()
 	c.timer.Stop()
 	c.timer.Reset(time.Hour)
 	c.e.Clear()
@@ -223,26 +187,26 @@ func (c *cache) Clear() {
 func (c *cache) garbageCollector(ctx context.Context) {
 	for {
 		c.mu.Lock()
-		for len(c.pq) == 0 {
+		for c.ttl.Len() == 0 {
 			c.cond.Wait() // release the lock and wait until an item is added
 		}
 
 		now := time.Now().UnixNano()
 
-		for len(c.pq) > 0 && c.pq[0].expiresAt <= now {
-			expired := heap.Pop(&c.pq).(*pqItem)
+		for c.ttl.Len() > 0 && c.ttl.Top().Value().(int64) <= now {
+			expiredKey := c.ttl.Pop()
 
-			item, ok := c.items[expired.key]
+			item, ok := c.items[expiredKey]
 			if ok {
-				delete(c.items, expired.key)
+				delete(c.items, expiredKey)
 
-				c.finalizer(expired.key, item.Object)
+				c.finalizer(expiredKey, item.Object)
 			}
 		}
 
 		// Sleep until the next item's expiration
-		if len(c.pq) > 0 {
-			sleepDuration := time.Until(time.Unix(0, c.pq[0].expiresAt))
+		if c.ttl.Len() > 0 {
+			sleepDuration := time.Until(time.Unix(0, c.ttl.Top().Value().(int64)))
 
 			c.timer.Reset(sleepDuration)
 		}
@@ -315,20 +279,19 @@ func (c *cache) setItem(k string, item Item) {
 	}
 
 	top := ""
-	if c.pq.Len() > 0 {
-		top = c.pq[0].key // pq top before we add the keys
+	if c.ttl.Len() > 0 {
+		top = c.ttl.Top().Key() // pq top before we add the keys
 	}
 
-	heap.Push(&c.pq, &pqItem{
-		key:       k,
-		expiresAt: item.Expiration,
-	})
+	c.ttl.Put(k, item.Expiration)
 
 	c.cond.Signal()
 
+	newTop := c.ttl.Top()
+
 	// if the pq top has changed then reset the timer.
-	if c.pq.Len() > 0 && top != c.pq[0].key {
-		c.timer.Reset(time.Until(time.Unix(0, c.pq[0].expiresAt)))
+	if c.ttl.Len() > 0 && top != newTop.Key() {
+		c.timer.Reset(time.Until(time.Unix(0, newTop.Value().(int64))))
 	}
 }
 
@@ -411,15 +374,17 @@ func (c *cache) deleteItem(k string) {
 
 	top := ""
 
-	if c.pq.Len() > 0 {
-		top = c.pq[0].key
+	if c.ttl.Len() > 0 {
+		top = c.ttl.Top().Key()
 	}
 
-	c.pq.Remove(k)
+	c.ttl.Delete(k)
+
+	newTop := c.ttl.Top()
 
 	// if the top of the pq has changed, reset the timer
-	if c.pq.Len() > 0 && top != c.pq[0].key {
-		c.timer.Reset(time.Until(time.Unix(0, c.pq[0].expiresAt)))
+	if c.ttl.Len() > 0 && top != newTop.Key() {
+		c.timer.Reset(time.Until(time.Unix(0, newTop.Value().(int64))))
 	}
 }
 
