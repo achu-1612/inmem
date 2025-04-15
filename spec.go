@@ -51,9 +51,12 @@ type Cache interface {
 
 // Eviction is the interface that defines the methods for an eviction policy.
 type Eviction interface {
-	Delete(key string)
+	// Put adds a key-value pair to the eviction cache.
 	Put(key string, value any)
+	// Get retrieves a value from the eviction cache given a key.
 	Get(key string) (any, bool)
+	// Delete removes a key from the eviction cache.
+	Delete(key string)
 	// Clear clears the eviction acache
 	Clear()
 }

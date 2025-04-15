@@ -13,9 +13,8 @@ const (
 
 // shardedCache represents a sharded cache instance.
 type shardedCache struct {
-	shards        []Cache
-	numShards     uint32
-	indexResolver ShardIndexResolver
+	shards    []Cache
+	numShards uint32
 }
 
 // NewShardedCache returns a new sharded cache instance.
@@ -40,35 +39,12 @@ func NewShardedCache(ctx context.Context, opt Options) (Cache, error) {
 		numShards: numShards,
 	}
 
-	if opt.ShardIndexCache {
-		lfu, err := NewEviction(
-			EvictionOptions{
-				Policy:    EvictionPolicyLFU,
-				MaxSize:   opt.ShardIndexCacheSize,
-				Allocator: func(s string) LFUResource { return &shardIndexEntry{key: s} },
-			},
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("new lfu cache: %v", err)
-		}
-
-		sc.indexResolver = &shardResolverWithCache{
-			numShards: numShards,
-			lfu:       lfu,
-		}
-	} else {
-		sc.indexResolver = &shardResolverWithoutCache{
-			numShards: numShards,
-		}
-	}
-
 	return sc, nil
 }
 
 // getShard returns the shard for a given key.
 func (sc *shardedCache) getShard(key string) Cache {
-	return sc.shards[sc.indexResolver.GetShardIndex(key)]
+	return sc.shards[GetShardIndex(sc.numShards, key)]
 }
 
 // Size returns the total number of items in the cache.
@@ -157,64 +133,9 @@ func (sc *shardedCache) Rollback() error {
 	return nil
 }
 
-var _ ShardIndexResolver = &shardResolverWithoutCache{}
-var _ ShardIndexResolver = &shardResolverWithCache{}
-
-type shardResolverWithoutCache struct {
-	numShards uint32
-}
-
-func (sr *shardResolverWithoutCache) GetShardIndex(key string) uint32 {
+func GetShardIndex(numShards uint32, key string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 
-	return h.Sum32() % sr.numShards
-}
-
-type shardResolverWithCache struct {
-	numShards uint32
-	lfu       Eviction
-}
-
-func (sr *shardResolverWithCache) GetShardIndex(key string) uint32 {
-	if shardIdx, ok := sr.lfu.Get(key); ok {
-		return shardIdx.(uint32)
-	}
-
-	h := fnv.New32a()
-	h.Write([]byte(key))
-
-	idx := h.Sum32() % sr.numShards
-
-	sr.lfu.Put(key, idx)
-
-	return idx
-}
-
-// shardIndexEntry implements the LFUResource interface,
-// so that it can be used with the LFUCache.
-type shardIndexEntry struct {
-	key       string
-	shardIdx  uint32
-	frequency int
-}
-
-func (e *shardIndexEntry) Value() any {
-	return e.shardIdx
-}
-
-func (e *shardIndexEntry) Set(value any) {
-	e.shardIdx = value.(uint32)
-}
-
-func (e *shardIndexEntry) Frequency() int {
-	return e.frequency
-}
-
-func (e *shardIndexEntry) IncrementFrequency() {
-	e.frequency++
-}
-
-func (e *shardIndexEntry) Key() string {
-	return e.key
+	return h.Sum32() % numShards
 }

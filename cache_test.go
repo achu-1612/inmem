@@ -1,12 +1,13 @@
 package inmem
 
 import (
-	"container/heap"
 	"context"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/achu-1612/inmem/eviction"
 )
 
 func TestGarbageCollector(t *testing.T) {
@@ -19,10 +20,10 @@ func TestGarbageCollector(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
+		ttl:       eviction.NewTTL(),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -33,10 +34,8 @@ func TestGarbageCollector(t *testing.T) {
 		Expiration: time.Now().UnixNano() + ttl*int64(time.Second),
 	}
 	c.items["testKey"] = item
-	heap.Push(&c.pq, &pqItem{
-		key:       "testKey",
-		expiresAt: item.Expiration,
-	})
+
+	c.ttl.Put("testKey", item.Expiration)
 
 	// Start the garbage collector in a separate goroutine
 	go c.garbageCollector(context.Background())
@@ -68,11 +67,11 @@ func TestClear(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -92,8 +91,8 @@ func TestClear(t *testing.T) {
 	}
 
 	// Check if the priority queue is empty
-	if len(c.pq) != 0 {
-		t.Errorf("expected priority queue to be empty, got %d items", len(c.pq))
+	if c.ttl.Len() != 0 {
+		t.Errorf("expected priority queue to be empty, got %d items", c.ttl.Len())
 	}
 
 	// Check if the finalizer was called
@@ -106,7 +105,7 @@ func Test_inTransaction(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: func(k string, v any) {},
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
@@ -210,11 +209,11 @@ func TestSetItem(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 
 	c.cond = sync.NewCond(c.mu)
@@ -266,12 +265,12 @@ func TestSetItem(t *testing.T) {
 			}
 
 			if tt.ttl > 0 {
-				if len(c.pq) != 1 {
-					t.Errorf("expected priority queue size %d, got %d", 1, len(c.pq))
+				if c.ttl.Len() != 1 {
+					t.Errorf("expected priority queue size %d, got %d", 1, c.ttl.Len())
 				}
 			} else {
-				if len(c.pq) != 0 {
-					t.Errorf("expected priority queue size %d, got %d", 0, len(c.pq))
+				if c.ttl.Len() != 0 {
+					t.Errorf("expected priority queue size %d, got %d", 0, c.ttl.Len())
 				}
 			}
 		})
@@ -287,11 +286,11 @@ func TestDeleteItem(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -351,8 +350,8 @@ func TestDeleteItem(t *testing.T) {
 			}
 
 			if tt.ttl > 0 {
-				if len(c.pq) != 0 {
-					t.Errorf("expected priority queue size %d, got %d", 0, len(c.pq))
+				if c.ttl.Len() != 0 {
+					t.Errorf("expected priority queue size %d, got %d", 0, c.ttl.Len())
 				}
 			}
 
@@ -390,7 +389,7 @@ func TestBegin(t *testing.T) {
 				items:     make(map[string]Item),
 				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
-				pq:        make(PriorityQueue, 0),
+				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
@@ -468,11 +467,11 @@ func TestCommit(t *testing.T) {
 				items:     make(map[string]Item),
 				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
-				pq:        make(PriorityQueue, 0),
+				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
-				e:         &NilEviction{},
+				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -504,8 +503,8 @@ func TestCommit(t *testing.T) {
 				t.Errorf("expected cache size %d, got %d", len(tt.expectedItems), len(c.items))
 			}
 
-			if len(c.pq) != tt.queueSize {
-				t.Errorf("expected priority queue size %d, got %d", tt.queueSize, len(c.pq))
+			if c.ttl.Len() != tt.queueSize {
+				t.Errorf("expected priority queue size %d, got %d", tt.queueSize, c.ttl.Len())
 			}
 		})
 	}
@@ -561,11 +560,11 @@ func TestRollback(t *testing.T) {
 				items:     make(map[string]Item),
 				mu:        &sync.RWMutex{},
 				finalizer: func(k string, v any) {},
-				pq:        make(PriorityQueue, 0),
+				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
-				e:         &NilEviction{},
+				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -610,11 +609,11 @@ func TestDelete_WithoutTx(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -677,11 +676,11 @@ func TestDelete_WithTx(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -726,11 +725,11 @@ func TestGet(t *testing.T) {
 		items:     make(map[string]Item),
 		mu:        &sync.RWMutex{},
 		finalizer: finalizer,
-		pq:        make(PriorityQueue, 0),
+		ttl:       eviction.NewTTL(),
 		timer:     time.NewTimer(time.Hour),
 		txStage:   make(map[uint64]*txStore),
 		l:         newLogger("", true, false),
-		e:         &NilEviction{},
+		e:         eviction.New(eviction.Options{}),
 	}
 	c.cond = sync.NewCond(c.mu)
 
@@ -886,11 +885,11 @@ func TestSet(t *testing.T) {
 				items:     make(map[string]Item),
 				mu:        &sync.RWMutex{},
 				finalizer: finalizer,
-				pq:        make(PriorityQueue, 0),
+				ttl:       eviction.NewTTL(),
 				timer:     time.NewTimer(time.Hour),
 				txStage:   make(map[uint64]*txStore),
 				l:         newLogger("", true, false),
-				e:         &NilEviction{},
+				e:         eviction.New(eviction.Options{}),
 			}
 			c.cond = sync.NewCond(c.mu)
 
@@ -917,7 +916,7 @@ func TestSet(t *testing.T) {
 
 func TestCacheWithEviction(t *testing.T) {
 	c, err := NewCache(context.Background(), Options{
-		EvictionPolicy: EvictionPolicyLFU,
+		EvictionPolicy: eviction.PolicyLFU,
 		MaxSize:        10,
 	}, 0)
 
