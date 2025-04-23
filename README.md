@@ -2,6 +2,7 @@
 
 `inmem` is an in-memory cache library for Go, designed to provide a simple and efficient caching mechanism.
 
+
 ## Features
 
 - **In-Memory Caching**: Store key-value pairs in memory for fast access.
@@ -209,3 +210,4 @@ Contributions are welcome! Open an issue or submit a pull request.
 ## Contact
 
 For questions or support, reach out to [me](https://github.com/achu-1612)
+Read the [blog post](https://dev.to/achu1612/introducing-inmem-lightweight-go-cache-engine-with-built-in-sharding-transaction-and-eviction-42f3) for inmem
