@@ -210,4 +210,5 @@ Contributions are welcome! Open an issue or submit a pull request.
 ## Contact
 
 For questions or support, reach out to [me](https://github.com/achu-1612)
-Read the [blog post](https://dev.to/achu1612/introducing-inmem-lightweight-go-cache-engine-with-built-in-sharding-transaction-and-eviction-42f3) for inmem
+<br>
+Do read the [blog post](https://dev.to/achu1612/introducing-inmem-lightweight-go-cache-engine-with-built-in-sharding-transaction-and-eviction-42f3) for inmem.
